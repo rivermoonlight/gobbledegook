@@ -1,6 +1,6 @@
 # What is Gobbledegook?
 
-_Gobbledegook_ is a standalone D-Bus-based BlueZ BLE GATT server for Linux with HCI support and a simple C interface. That's a lot of words, so I shortened it to _Gobbledegook_. Then I shortened it again to _GGK_ because let's be honest, it's a pain to type.
+_Gobbledegook_ is a C/C++ standalone Linux [Bluetooth LE](https://en.wikipedia.org/wiki/Bluetooth_Low_Energy) [GATT](https://www.bluetooth.com/specifications/gatt/generic-attributes-overview) server using [BlueZ](http://www.bluez.org/about/) over [D-Bus](https://www.freedesktop.org/wiki/Software/dbus/#index1h1) with [Bluetooth Management API](https://git.kernel.org/pub/scm/bluetooth/bluez.git/tree/doc/mgmt-api.txt) support built in. That's a lot of words, so I shortened it to _Gobbledegook_. Then I shortened it again to _GGK_ because let's be honest, it's a pain to type.
 
 For the impatient folks in a hurry (or really just have to pee) skip down to the **Quick-start for the impatient** section at the bottom of this document.
 
