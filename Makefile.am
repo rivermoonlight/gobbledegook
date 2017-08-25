@@ -1,0 +1,3 @@
+SUBDIRS = src
+EXTRA_DIST = README.md
+ACLOCAL_AMFLAGS = -I build-aux
