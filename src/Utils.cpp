@@ -349,13 +349,13 @@ GVariant *Utils::gvariantFromByteArray(const char *pStr)
 		return g_variant_new("ay", nullptr);
 	}
 
-	return g_variant_new_bytestring(pStr);
+	return gvariantFromByteArray(reinterpret_cast<const guint8 *>(pStr), strlen(pStr));
 }
 
 // Returns an array of bytes ("ay") with the contents of the input string
 GVariant *Utils::gvariantFromByteArray(const std::string &str)
 {
-	return gvariantFromByteArray(str.c_str());
+	return gvariantFromByteArray(reinterpret_cast<const guint8 *>(str.c_str()), str.length());
 }
 
 // Returns an array of bytes ("ay") with the contents of the input array of unsigned 8-bit values
