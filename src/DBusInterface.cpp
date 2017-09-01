@@ -58,6 +58,8 @@
 #include "DBusObject.h"
 #include "Logger.h"
 
+namespace ggk {
+
 //
 // Construction
 //
@@ -200,3 +202,5 @@ std::string DBusInterface::generateIntrospectionXML(int depth) const
 
 	return xml;
 }
+
+}; // namespace ggk

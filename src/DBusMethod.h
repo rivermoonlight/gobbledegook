@@ -46,6 +46,8 @@
 #include "DBusObjectPath.h"
 #include "Logger.h"
 
+namespace ggk {
+
 struct DBusInterface;
 
 struct DBusMethod
@@ -102,7 +104,7 @@ struct DBusMethod
 			return;
 		}
 
-		Logger::info(SSTR << "Calling method: [" << path << "]:[" << interfaceName << "]:[" << methodName << "]");
+		Logger::trace(SSTR << "Calling method: [" << path << "]:[" << interfaceName << "]:[" << methodName << "]");
 		callback(*static_cast<const T *>(pOwner), pConnection, methodName, pParameters, pInvocation, pUserData);
 	}
 
@@ -116,3 +118,5 @@ private:
 	std::string outArgs;
 	Callback callback;
 };
+
+}; // namespace ggk

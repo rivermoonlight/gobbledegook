@@ -42,6 +42,8 @@
 #include "TickEvent.h"
 #include "GattInterface.h"
 
+namespace ggk {
+
 // ---------------------------------------------------------------------------------------------------------------------------------
 // Forward declarations
 // ---------------------------------------------------------------------------------------------------------------------------------
@@ -97,3 +99,5 @@ struct GattService : GattInterface
 	// Returns a string identifying the type of interface
 	virtual const std::string getInterfaceType() const { return GattService::kInterfaceType; }
 };
+
+}; // namespace ggk

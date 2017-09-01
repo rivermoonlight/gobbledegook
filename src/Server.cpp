@@ -172,6 +172,8 @@
 #include "GattCharacteristic.h"
 #include "GattDescriptor.h"
 
+namespace ggk {
+
 // There's a good chance there will be a bunch of unused parameters from the lambda macros
 #if defined(__GNUC__) && defined(__clang__)
 	#pragma clang diagnostic push
@@ -616,3 +618,5 @@ const GattProperty *Server::findProperty(const DBusObjectPath &objectPath, const
 
 	return nullptr;
 }
+
+}; // namespace ggk

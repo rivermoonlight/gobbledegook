@@ -56,6 +56,8 @@
 #include "GattUuid.h"
 #include "Logger.h"
 
+namespace ggk {
+
 // Construct a root object with no parent
 //
 // We'll include a publish flag since only root objects can be published
@@ -284,3 +286,5 @@ void DBusObject::emitSignal(GDBusConnection *pBusConnection, const std::string &
 	}
 }
 
+
+}; // namespace ggk

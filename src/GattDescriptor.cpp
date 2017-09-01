@@ -38,6 +38,8 @@
 #include "Utils.h"
 #include "Logger.h"
 
+namespace ggk {
+
 //
 // Standard constructor
 //
@@ -171,6 +173,8 @@ bool GattDescriptor::callOnUpdatedValue(GDBusConnection *pConnection, void *pUse
 		return false;
 	}
 
-	Logger::info(SSTR << "Calling OnUpdatedValue function for interface at path '" << getPath() << "'");
+	Logger::trace(SSTR << "Calling OnUpdatedValue function for interface at path '" << getPath() << "'");
 	return pOnUpdatedValueFunc(*this, pConnection, pUserData);
 }
+
+}; // namespace ggk

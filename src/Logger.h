@@ -37,6 +37,8 @@
 
 #include "../include/Gobbledegook.h"
 
+namespace ggk {
+
 // Our handy stringstream macro
 #define SSTR std::ostringstream().flush()
 
@@ -183,3 +185,5 @@ private:
 	// The registered log receiver for TRACE logs - a nullptr will cause the logging for that receiver to be ignored
 	static GGKLogReceiver logReceiverTrace;
 };
+
+}; // namespace ggk

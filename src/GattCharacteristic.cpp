@@ -41,6 +41,8 @@
 #include "Utils.h"
 #include "Logger.h"
 
+namespace ggk {
+
 //
 // Standard constructor
 //
@@ -170,7 +172,7 @@ bool GattCharacteristic::callOnUpdatedValue(GDBusConnection *pConnection, void *
 		return false;
 	}
 
-	Logger::info(SSTR << "Calling OnUpdatedValue function for interface at path '" << getPath() << "'");
+	Logger::trace(SSTR << "Calling OnUpdatedValue function for interface at path '" << getPath() << "'");
 	return pOnUpdatedValueFunc(*this, pConnection, pUserData);
 }
 
@@ -215,3 +217,5 @@ void GattCharacteristic::sendChangeNotificationVariant(GDBusConnection *pBusConn
 	GVariant *pSasv = g_variant_new("(sa{sv})", "org.bluez.GattCharacteristic1", &builder);
 	owner.emitSignal(pBusConnection, "org.freedesktop.DBus.Properties", "PropertiesChanged", pSasv);
 }
+
+}; // namespace ggk

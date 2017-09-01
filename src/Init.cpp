@@ -60,6 +60,8 @@
 #include "Logger.h"
 #include "Init.h"
 
+namespace ggk {
+
 //
 // Constants
 //
@@ -174,7 +176,7 @@ bool idleFunc(void *pUserData)
 		// Is it a characteristic?
 		if (std::shared_ptr<const GattCharacteristic> pCharacteristic = TRY_GET_CONST_INTERFACE_OF_TYPE(pInterface, GattCharacteristic))
 		{
-			Logger::info(SSTR << "Processing updated value for interface '" << interfaceName << "' at path '" << objectPath << "'");
+			Logger::trace(SSTR << "Processing updated value for interface '" << interfaceName << "' at path '" << objectPath << "'");
 			pCharacteristic->callOnUpdatedValue(pBusConnection, pUserData);
 		}
 	}
@@ -420,7 +422,7 @@ GVariant *onGetProperty
 		return nullptr;
 	}
 
-	Logger::info(SSTR << "Calling property getter: " << propertyPath);
+	Logger::trace(SSTR << "Calling property getter: " << propertyPath);
 	GVariant *pResult = pProperty->getGetterFunc()(pConnection, pSender, objectPath.c_str(), pInterfaceName, pPropertyName, ppError, pUserData);
 
 	if (nullptr == pResult)
@@ -465,7 +467,7 @@ gboolean onSetProperty
 		return false;
 	}
 
-	Logger::info(SSTR << "Calling property getter: " << propertyPath);
+	Logger::trace(SSTR << "Calling property getter: " << propertyPath);
 	if (!pProperty->getSetterFunc()(pConnection, pSender, objectPath.c_str(), pInterfaceName, pPropertyName, pValue, ppError, pUserData))
 	{
 	    g_set_error(ppError, G_IO_ERROR, G_IO_ERROR_FAILED, ("Property(set) failed: " + propertyPath).c_str(), pSender);
@@ -490,7 +492,7 @@ gboolean onSetProperty
 void setRetryFailure()
 {
 	retryTimeStart = time(nullptr);
-	Logger::info(SSTR << "  + Will retry this failed operation in about " << kRetryDelaySeconds << " seconds");
+	Logger::debug(SSTR << "  + Will retry this failed operation in about " << kRetryDelaySeconds << " seconds");
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------
@@ -532,7 +534,7 @@ void doRegisterApplication()
 			else
 			{
 				g_variant_unref(pVariant);
-				Logger::info(SSTR << "Application registered");
+				Logger::trace(SSTR << "Application registered");
 				bApplicationRegistered = true;
 			}
 
@@ -662,7 +664,7 @@ void configureAdapter()
 	Mgmt mgmt;
 
 	// Find out what our current settings are
-	Logger::info(SSTR << "Getting device information");
+	Logger::trace(SSTR << "Getting device information");
 	Mgmt::ControllerInformation *pInfo = mgmt.getControllerInformation();
 	if (nullptr == pInfo)
 	{
@@ -673,7 +675,7 @@ void configureAdapter()
 	// We need it off to start with
 	if ((pInfo->currentSettings & Mgmt::EHciPowered) != 0)
 	{
-		Logger::info(SSTR << "Powering off");
+		Logger::trace(SSTR << "Powering off");
 		if (!mgmt.setPowered(false))
 		{
 			setRetryFailure();
@@ -685,7 +687,7 @@ void configureAdapter()
 	bool bredrCurrentState = (pInfo->currentSettings & Mgmt::EHciBasicRate_EnhancedDataRate) != 0 ? true:false;
 	if (TheServer->getEnableBREDR() != bredrCurrentState)
 	{
-		Logger::info(SSTR << (TheServer->getEnableBREDR() ? "Enabling":"Disabling") << " BR/EDR");
+		Logger::trace(SSTR << (TheServer->getEnableBREDR() ? "Enabling":"Disabling") << " BR/EDR");
 		if (!mgmt.setBredr(TheServer->getEnableBREDR()))
 		{
 			setRetryFailure();
@@ -697,7 +699,7 @@ void configureAdapter()
 	bool scCurrentState = (pInfo->currentSettings & Mgmt::EHciSecureConnections) != 0 ? true:false;
 	if (TheServer->getEnableSecureConnection() != scCurrentState)
 	{
-		Logger::info(SSTR << (TheServer->getEnableSecureConnection() ? "Enabling":"Disabling") << " Secure Connections");
+		Logger::trace(SSTR << (TheServer->getEnableSecureConnection() ? "Enabling":"Disabling") << " Secure Connections");
 		if (!mgmt.setSecureConnections(TheServer->getEnableSecureConnection() ? 1 : 0))
 		{
 			setRetryFailure();
@@ -709,7 +711,7 @@ void configureAdapter()
 	bool bondableCurrentState = (pInfo->currentSettings & Mgmt::EHciBondable) != 0 ? true:false;
 	if (TheServer->getEnableBondable() != bondableCurrentState)
 	{
-		Logger::info(SSTR << (TheServer->getEnableBondable() ? "Enabling":"Disabling") << " Bondable");
+		Logger::trace(SSTR << (TheServer->getEnableBondable() ? "Enabling":"Disabling") << " Bondable");
 		if (!mgmt.setBondable(TheServer->getEnableBondable()))
 		{
 			setRetryFailure();
@@ -721,7 +723,7 @@ void configureAdapter()
 	bool connectableCurrentState = (pInfo->currentSettings & Mgmt::EHciConnectable) != 0 ? true:false;
 	if (TheServer->getEnableConnectable() != connectableCurrentState)
 	{
-		Logger::info(SSTR << (TheServer->getEnableConnectable() ? "Enabling":"Disabling") << " Connectable");
+		Logger::trace(SSTR << (TheServer->getEnableConnectable() ? "Enabling":"Disabling") << " Connectable");
 		if (!mgmt.setConnectable(TheServer->getEnableConnectable()))
 		{
 			setRetryFailure();
@@ -732,7 +734,7 @@ void configureAdapter()
 	// Enable the LE state (we always set this state if it's not set)
 	if ((pInfo->currentSettings & Mgmt::EHciLowEnergy) == 0)
 	{
-		Logger::info(SSTR << "Enabling LE");
+		Logger::trace(SSTR << "Enabling LE");
 		if (!mgmt.setLE(true))
 		{
 			setRetryFailure();
@@ -744,7 +746,7 @@ void configureAdapter()
 	bool advertisingCurrentState = (pInfo->currentSettings & Mgmt::EHciAdvertising) != 0 ? true:false;
 	if (TheServer->getEnableAdvertising() != advertisingCurrentState)
 	{
-		Logger::info(SSTR << (TheServer->getEnableAdvertising() ? "Enabling":"Disabling") << " Advertising");
+		Logger::trace(SSTR << (TheServer->getEnableAdvertising() ? "Enabling":"Disabling") << " Advertising");
 		if (!mgmt.setAdvertising(TheServer->getEnableAdvertising() ? 1 : 0))
 		{
 			setRetryFailure();
@@ -758,7 +760,7 @@ void configureAdapter()
 		if (Mgmt::truncateName(kCustomGlobalAdvertisingName) != pInfo->name ||
 			Mgmt::truncateShortName(kCustomGlobalAdvertisingShortName) != pInfo->shortName)
 		{
-			Logger::info(SSTR << "Setting name to '" << kCustomGlobalAdvertisingName << "'");
+			Logger::trace(SSTR << "Setting name to '" << kCustomGlobalAdvertisingName << "'");
 			if (!mgmt.setName(kCustomGlobalAdvertisingName.c_str(), kCustomGlobalAdvertisingName.c_str()))
 			{
 				setRetryFailure();
@@ -768,7 +770,7 @@ void configureAdapter()
 	}
 
 	// Turn it back on
-	Logger::info(SSTR << "Powering on");
+	Logger::trace(SSTR << "Powering on");
 	if (!mgmt.setPowered(true))
 	{
 		setRetryFailure();
@@ -856,7 +858,7 @@ void findAdapterInterface()
 	// If we didn't find the adapter object, reset things and we'll try again later
 	if (nullptr == pBluezAdapterObject || nullptr == pBluezDeviceObject)
 	{
-		Logger::info(SSTR << "Unable to find BlueZ objects outside of object list");
+		Logger::warn(SSTR << "Unable to find BlueZ objects outside of object list");
 		bluezGattManagerInterfaceName.clear();
 	}
 
@@ -1058,7 +1060,7 @@ void initializationStateProcessor()
 	//
 	if (nullptr == pBusConnection)
 	{
-		Logger::info(SSTR << "Acquiring bus connection");
+		Logger::trace(SSTR << "Acquiring bus connection");
 		doBusAcquire();
 		return;
 	}
@@ -1068,7 +1070,7 @@ void initializationStateProcessor()
 	//
 	if (!bOwnedNameAcquired)
 	{
-		Logger::info(SSTR << "Acquiring owned name: '" << kServerOwnedName << "'");
+		Logger::trace(SSTR << "Acquiring owned name: '" << kServerOwnedName << "'");
 		doOwnedNameAcquire();
 		return;
 	}
@@ -1088,7 +1090,7 @@ void initializationStateProcessor()
 	//
 	if (bluezGattManagerInterfaceName.empty())
 	{
-		Logger::debug(SSTR << "Finding BlueZ GattManager1 interface");
+		Logger::trace(SSTR << "Finding BlueZ GattManager1 interface");
 		findAdapterInterface();
 		return;
 	}
@@ -1098,7 +1100,7 @@ void initializationStateProcessor()
 	//
 	if (!bAdapterConfigured)
 	{
-		Logger::info(SSTR << "Configuring BlueZ adapter '" << bluezGattManagerInterfaceName << "'");
+		Logger::trace(SSTR << "Configuring BlueZ adapter '" << bluezGattManagerInterfaceName << "'");
 		configureAdapter();
 		return;
 	}
@@ -1108,7 +1110,7 @@ void initializationStateProcessor()
 	//
 	if (registeredObjectIds.empty())
 	{
-		Logger::info(SSTR << "Registering with D-Bus");
+		Logger::trace(SSTR << "Registering with D-Bus");
 		registerObjects();
 		return;
 	}
@@ -1116,7 +1118,7 @@ void initializationStateProcessor()
 	// Register our appliation with the BlueZ GATT manager
 	if (!bApplicationRegistered)
 	{
-		Logger::info(SSTR << "Registering application with BlueZ GATT manager");
+		Logger::trace(SSTR << "Registering application with BlueZ GATT manager");
 
 		doRegisterApplication();
 		return;
@@ -1165,7 +1167,7 @@ void runServerThread()
 	// There are alternatives, but using async methods is the recommended way.
 	initializationStateProcessor();
 
-	Logger::info(SSTR << "Starting main loop");
+	Logger::trace(SSTR << "Starting main loop");
 	pMainLoop = g_main_loop_new(NULL, FALSE);
 
 	// Add the idle function
@@ -1192,16 +1194,15 @@ void runServerThread()
 	{
 		Logger::error(SSTR << "Unable to add idle to main loop");
 	}
-	else
-	{
-		Logger::info("Idle function added successfully");
-	}
 
 	g_main_loop_run(pMainLoop);
 
 	// We have stopped
 	setServerRunState(EStopped);
+	Logger::info("GGK server stopped");
 
 	// Cleanup
 	uninit();
 }
+
+}; // namespace ggk

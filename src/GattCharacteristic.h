@@ -41,6 +41,8 @@
 #include "TickEvent.h"
 #include "GattInterface.h"
 
+namespace ggk {
+
 // ---------------------------------------------------------------------------------------------------------------------------------
 // Forward declarations
 // ---------------------------------------------------------------------------------------------------------------------------------
@@ -217,3 +219,5 @@ protected:
 	GattService &service;
 	UpdatedValueCallback pOnUpdatedValueFunc;
 };
+
+}; // namespace ggk

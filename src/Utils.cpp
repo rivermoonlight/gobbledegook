@@ -43,6 +43,8 @@
 
 #include "Utils.h"
 
+namespace ggk {
+
 // ---------------------------------------------------------------------------------------------------------------------------------
 // Handy string functions
 // ---------------------------------------------------------------------------------------------------------------------------------
@@ -429,3 +431,5 @@ std::string Utils::stringFromGVariantByteArray(const GVariant *pVariant)
 	memcpy(array.data(), pPtr, size);
 	return array.data();
 }
+
+}; // namespace ggk

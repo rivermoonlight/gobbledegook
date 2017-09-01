@@ -37,6 +37,8 @@
 #include "Utils.h"
 #include "GattProperty.h"
 
+namespace ggk {
+
 // Constructs a named property
 //
 // In general, properties should not be constructed directly as properties are typically instanticated by adding them to to an
@@ -183,3 +185,5 @@ std::string GattProperty::generateIntrospectionXML(int depth) const
 
 	return xml;
 }
+
+}; // namespace ggk

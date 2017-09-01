@@ -39,6 +39,8 @@
 #include <string>
 #include <ostream>
 
+namespace ggk {
+
 struct DBusObjectPath
 {
 	// Default constructor (creates a root path)
@@ -170,3 +172,5 @@ inline std::ostream& operator +(std::ostream &os, const DBusObjectPath &path)
     os << path.toString();
     return os;
 }
+
+}; // namespace ggk

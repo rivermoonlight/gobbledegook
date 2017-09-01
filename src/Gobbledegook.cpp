@@ -54,22 +54,45 @@
 #include "Logger.h"
 #include "Server.h"
 
-// During initialization, we'll check for complation at this interval
-static const int kMaxAsyncInitCheckIntervalMS = 10;
+namespace ggk
+{
+	// During initialization, we'll check for complation at this interval
+	static const int kMaxAsyncInitCheckIntervalMS = 10;
 
-// Our server thread
-static std::thread serverThread;
+	// Our server thread
+	static std::thread serverThread;
 
-// The current server state
-volatile static GGKServerRunState serverRunState = EUninitialized;
+	// The current server state
+	volatile static GGKServerRunState serverRunState = EUninitialized;
 
-// The current server health
-volatile static GGKServerHealth serverHealth = EOk;
+	// The current server health
+	volatile static GGKServerHealth serverHealth = EOk;
 
-// Our update queue
-typedef std::tuple<std::string, std::string> QueueEntry;
-std::deque<QueueEntry> updateQueue;
-std::mutex updateQueueMutex;
+	// We store the old GLib print handler and error print handler so we can restore if
+	static GPrintFunc printHandlerGLib;
+	static GPrintFunc printerrHandlerGLib;
+	static GLogFunc logHandlerGLib;
+
+	// Our update queue
+	typedef std::tuple<std::string, std::string> QueueEntry;
+	std::deque<QueueEntry> updateQueue;
+	std::mutex updateQueueMutex;
+
+	// Internal method to set the run state of the server
+	void setServerRunState(GGKServerRunState newState)
+	{
+		Logger::status(SSTR << "** SERVER RUN STATE CHANGED: " << ggkGetServerRunStateString(serverRunState) << " -> " << ggkGetServerRunStateString(newState));
+		serverRunState = newState;
+	}
+
+	// Internal method to set the health of the server
+	void setServerHealth(GGKServerHealth newState)
+	{
+		serverHealth = newState;
+	}
+}; // namespace ggk
+
+using namespace ggk;
 
 // ---------------------------------------------------------------------------------------------------------------------------------
 //  _                                  _     _             _   _
@@ -228,13 +251,6 @@ const char *ggkGetServerRunStateString(GGKServerRunState state)
 	}
 }
 
-// Internal method to set the run state of the server
-void setServerRunState(GGKServerRunState newState)
-{
-	Logger::status(SSTR << "** SERVER RUN STATE CHANGED: " << ggkGetServerRunStateString(serverRunState) << " -> " << ggkGetServerRunStateString(newState));
-	serverRunState = newState;
-}
-
 // Convenience method to check ServerRunState for a running server
 int ggkIsServerRunning()
 {
@@ -269,12 +285,6 @@ const char *ggkGetServerHealthString(GGKServerHealth state)
 		case EFailedRun: return "Failed run";
 		default: return "Unknown";
 	}
-}
-
-// Internal method to set the health of the server
-void setServerHealth(GGKServerHealth newState)
-{
-	serverHealth = newState;
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------
@@ -330,9 +340,13 @@ int ggkShutdownAndWait()
 // Typically, a call to this method would follow `ggkTriggerShutdown()`.
 int ggkWait()
 {
+	int result = 0;
 	try
 	{
+		Logger::info("Stopping GGK server");
 		serverThread.join();
+
+		result = 1;
 	}
 	catch(std::system_error &ex)
 	{
@@ -354,8 +368,12 @@ int ggkWait()
 		}
 	}
 
-	// Return true if we're stopped, otherwise false
-	return ggkGetServerRunState() == EStopped ? 1 : 0;
+	// Restore the GLib output functions
+	g_set_print_handler(printHandlerGLib);
+	g_set_printerr_handler(printerrHandlerGLib);
+	g_log_set_default_handler(logHandlerGLib, nullptr);
+
+	return result;
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------
@@ -387,6 +405,46 @@ int ggkWait()
 // safely for an indefinite period of time.
 int ggkStart(GGKServerDataGetter getter, GGKServerDataSetter setter, int maxAsyncInitTimeoutMS)
 {
+	//
+	// Start by capturing the GLib output
+	//
+
+	// Redirect GLib output to this log method
+	printHandlerGLib = g_set_print_handler([](const gchar *string)
+	{
+		Logger::info(string);
+	});
+	printerrHandlerGLib = g_set_printerr_handler([](const gchar *string)
+	{
+		Logger::error(string);
+	});
+	logHandlerGLib = g_log_set_default_handler([](const gchar *log_domain, GLogLevelFlags log_levels, const gchar *message, gpointer /*user_data*/)
+	{
+		std::string str = std::string(log_domain) + ": " + message;
+		if ((log_levels & (G_LOG_FLAG_RECURSION|G_LOG_FLAG_FATAL)) != 0)
+		{
+			Logger::fatal(str);
+		}
+		else if ((log_levels & (G_LOG_LEVEL_CRITICAL|G_LOG_LEVEL_ERROR)) != 0)
+		{
+			Logger::error(str);
+		}
+		else if ((log_levels & G_LOG_LEVEL_WARNING) != 0)
+		{
+			Logger::warn(str);
+		}
+		else if ((log_levels & G_LOG_LEVEL_DEBUG) != 0)
+		{
+			Logger::debug(str);
+		}
+		else
+		{
+			Logger::info(str);
+		}
+	}, nullptr);
+
+	Logger::info("Starting GGK server");
+
 	// Allocate our server
 	TheServer = std::make_shared<Server>(getter, setter);
 

@@ -32,6 +32,8 @@
 
 #pragma once
 
+namespace ggk {
+
 // Trigger a graceful, asynchronous shutdown of the server
 //
 // This method is non-blocking and as such, will only trigger the shutdown process but not wait for it
@@ -41,3 +43,5 @@ void shutdown();
 //
 // This method should not be called directly, instead, direct your attention over to `ggkStart()`
 void runServerThread();
+
+}; // namespace ggk

@@ -35,6 +35,8 @@
 #include <gio/gio.h>
 #include <string>
 
+namespace ggk {
+
 struct DBusObjectPath;
 
 // Representation of a GATT Property
@@ -104,3 +106,5 @@ private:
 	GDBusInterfaceGetPropertyFunc getterFunc;
 	GDBusInterfaceSetPropertyFunc setterFunc;
 };
+
+}; // namespace ggk

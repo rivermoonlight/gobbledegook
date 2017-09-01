@@ -40,6 +40,8 @@
 #include "DBusInterface.h"
 #include "DBusObjectPath.h"
 
+namespace ggk {
+
 struct GattProperty;
 struct GattService;
 struct GattUuid;
@@ -133,3 +135,5 @@ private:
 	std::list<DBusObject> children;
 	DBusObject *pParent;
 };
+
+}; // namespace ggk

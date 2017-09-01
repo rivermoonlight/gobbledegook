@@ -48,6 +48,8 @@
 
 #include "DBusObjectPath.h"
 
+namespace ggk {
+
 struct Utils
 {
 	// -----------------------------------------------------------------------------------------------------------------------------
@@ -210,3 +212,5 @@ struct Utils
 	// Convert a 32-bit value from host format to HCI format
 	static uint32_t endianToHci(uint32_t value) {return htole32(value);}
 };
+
+}; // namespace ggk

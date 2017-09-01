@@ -37,6 +37,8 @@
 #include <gio/gio.h>
 #include <string>
 
+namespace ggk {
+
 struct ServerUtils
 {
 	// Builds the response to the method call `GetManagedObjects` from the D-Bus interface `org.freedesktop.DBus.ObjectManager`
@@ -60,3 +62,5 @@ struct ServerUtils
 	// See: https://www.bluetooth.com/specifications/gatt/viewer?attributeXmlFile=org.bluetooth.characteristic.local_time_information.xml
 	static GVariant *gvariantLocalTime();
 };
+
+}; // namespace ggk

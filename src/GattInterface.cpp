@@ -36,6 +36,8 @@
 #include "DBusObject.h"
 #include "Logger.h"
 
+namespace ggk {
+
 //
 // Standard constructor
 //
@@ -121,3 +123,5 @@ std::string GattInterface::generateIntrospectionXML(int depth) const
 
 	return xml;
 }
+
+}; // namespace ggk

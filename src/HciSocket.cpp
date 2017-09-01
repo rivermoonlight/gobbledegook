@@ -48,6 +48,8 @@
 #include "Logger.h"
 #include "Utils.h"
 
+namespace ggk {
+
 // Initializes an unconnected socket
 HciSocket::HciSocket()
 : fdSocket(-1)
@@ -196,3 +198,5 @@ void HciSocket::logErrno(const char *pOperation) const
 {
 	Logger::error(SSTR << "" << pOperation << " on Bluetooth management socket error (" << errno << "): " << strerror(errno));
 }
+
+}; // namespace ggk

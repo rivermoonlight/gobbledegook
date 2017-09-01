@@ -39,6 +39,8 @@
 #include "Logger.h"
 #include "Utils.h"
 
+namespace ggk {
+
 // Construct the Mgmt device
 //
 // Set `controllerIndex` to the zero-based index of the device as recognized by the OS. If this parameter is omitted, the index
@@ -81,7 +83,7 @@ int Mgmt::getVersion()
 
 	response.toHost();
 
-	Logger::info(SSTR << "  + Version response has version=" << Utils::hex(response.version) << " and revision=" << Utils::hex(response.revision));
+	Logger::debug(SSTR << "  + Version response has version=" << Utils::hex(response.version) << " and revision=" << Utils::hex(response.revision));
 	return (response.version << 16) | response.revision;
 }
 
@@ -177,7 +179,7 @@ bool Mgmt::setName(std::string name, std::string shortName)
 		return false;
 	}
 
-	Logger::info(SSTR << "  + Name set to '" << request.name << "', short name set to '" << request.shortName << "'");
+	Logger::trace(SSTR << "  + Name set to '" << request.name << "', short name set to '" << request.shortName << "'");
 	return true;
 }
 
@@ -212,13 +214,24 @@ bool Mgmt::setState(const char *pSettingName, uint16_t commandCode, uint16_t con
 	SResponse response;
 	if (!hciAdapter.sendCommand(request, response, sizeof(response)))
 	{
-		Logger::warn(SSTR << "  + Failed to set " << pSettingName << " state to: " << static_cast<int>(newState));
+		// Setting power to 0 doesn't actually return a response event if it's connected (it receives a disconnect instead).
+		//
+		// This is a failure on the part of GGK because it should be handling events more correctly. For now, though, we'll just
+		// turn those failures into debug log messages so our logs aren't cluttered up with false failures.
+		if (commandCode == 0x0005)
+		{
+			Logger::debug(SSTR << "  + Failed to set " << pSettingName << " state to: " << static_cast<int>(newState));
+		}
+		else
+		{
+			Logger::info(SSTR << "  + Failed to set " << pSettingName << " state to: " << static_cast<int>(newState));
+		}
 		return false;
 	}
 
 	response.toHost();
 
-	Logger::info(SSTR << "  + " << pSettingName << " set to " << static_cast<int>(newState) << ": " << controllerSettingsString(response.currentSettings));
+	Logger::trace(SSTR << "  + " << pSettingName << " set to " << static_cast<int>(newState) << ": " << controllerSettingsString(response.currentSettings));
 	return true;
 }
 
@@ -337,3 +350,5 @@ std::string Mgmt::truncateShortName(const std::string &name)
 
 	return name.substr(0, kMaxShortNameLength);
 }
+
+}; // namespace ggk

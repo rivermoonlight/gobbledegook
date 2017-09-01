@@ -59,6 +59,8 @@
 #include "Utils.h"
 #include "Logger.h"
 
+namespace ggk {
+
 static const int kMinCommandCode = 0x0001;
 static const int kMaxCommandCode = 0x0043;
 static const char *kCommandCodeNames[kMaxCommandCode] =
@@ -356,12 +358,12 @@ bool HciAdapter::filterAndValidateEvents(uint16_t commandCode, std::vector<uint8
 		std::string eventTypeName = kEventTypeNames[pEvent->header.code - kMinEventType];
 		std::string commandCodeName = pEvent->commandCode < kMinCommandCode || pEvent->commandCode > kMaxCommandCode ? "Unknown" : kCommandCodeNames[pEvent->commandCode - kMinCommandCode];
 
-		Logger::info(SSTR << "  + Received event type " << Utils::hex(pEvent->header.code) << " (" << eventTypeName << ")");
+		Logger::debug(SSTR << "  + Received event type " << Utils::hex(pEvent->header.code) << " (" << eventTypeName << ")");
 
 		// Success event for our command?
 		if (pEvent->header.code != 1 && pEvent->commandCode != commandCode)
 		{
-			Logger::warn(SSTR << "  + Skipping event type " << Utils::hex(pEvent->header.code) << " (" << eventTypeName << ")");
+			Logger::debug(SSTR << "  + Skipping event type " << Utils::hex(pEvent->header.code) << " (" << eventTypeName << ")");
 		}
 		else
 		{
@@ -382,3 +384,5 @@ bool HciAdapter::filterAndValidateEvents(uint16_t commandCode, std::vector<uint8
 	buffer = lastGoodEvent;
 	return true;
 }
+
+}; // namespace ggk

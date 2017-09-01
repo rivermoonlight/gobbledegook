@@ -36,6 +36,8 @@
 #include <stdint.h>
 #include <vector>
 
+namespace ggk {
+
 class HciSocket
 {
 public:
@@ -88,3 +90,5 @@ private:
 	const int kRetryIntervalMS = 20;
 	const int kMaxRetryTimeMS = 5000;
 };
+
+}; // namespace ggk

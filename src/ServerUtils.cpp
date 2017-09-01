@@ -49,6 +49,8 @@
 #include "Logger.h"
 #include "Utils.h"
 
+namespace ggk {
+
 // Adds an object to the tree of managed objects as returned from the `GetManagedObjects` method call from the D-Bus interface
 // `org.freedesktop.DBus.ObjectManager`.
 //
@@ -312,3 +314,5 @@ GVariant *ServerUtils::gvariantLocalTime()
 	GVariant * const pVariant = g_variant_builder_end(&builder);
 	return pVariant;
 }
+
+}; // namespace ggk

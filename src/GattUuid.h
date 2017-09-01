@@ -69,6 +69,8 @@
 #include <iostream>
 #include "Logger.h"
 
+namespace ggk {
+
 // "0000180A-0000-1000-8000-00805f9b34fb"
 struct GattUuid
 {
@@ -280,3 +282,5 @@ private:
 	std::string uuid;
 	int bitCount;
 };
+
+}; // namespace ggk

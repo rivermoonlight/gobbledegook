@@ -41,6 +41,8 @@
 #include "HciAdapter.h"
 #include "Utils.h"
 
+namespace ggk {
+
 struct Mgmt
 {
 	//
@@ -211,3 +213,5 @@ private:
 	// A constant referring to a 'non-controller' (for commands that do not require a controller index)
 	static const uint16_t kNonController = 0xffff;
 };
+
+}; // namespace ggk

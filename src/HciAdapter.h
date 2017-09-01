@@ -40,6 +40,8 @@
 #include "HciSocket.h"
 #include "Utils.h"
 
+namespace ggk {
+
 class HciAdapter
 {
 public:
@@ -136,3 +138,5 @@ private:
 	// Our HCI Socket, which allows us to talk directly to the kernel
 	HciSocket hciSocket;
 };
+
+}; // namespace ggk

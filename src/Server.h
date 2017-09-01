@@ -42,6 +42,8 @@
 #include "DBusInterface.h"
 #include "DBusObject.h"
 
+namespace ggk {
+
 //
 // Forward declarations
 //
@@ -144,3 +146,5 @@ private:
 
 // Our one and only server. It's a global.
 extern std::shared_ptr<Server> TheServer;
+
+}; // namespace ggk

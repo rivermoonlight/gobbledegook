@@ -40,6 +40,8 @@
 #include "Utils.h"
 #include "GattInterface.h"
 
+namespace ggk {
+
 // ---------------------------------------------------------------------------------------------------------------------------------
 // Forward declarations
 // ---------------------------------------------------------------------------------------------------------------------------------
@@ -181,3 +183,5 @@ protected:
 	GattCharacteristic &characteristic;
 	UpdatedValueCallback pOnUpdatedValueFunc;
 };
+
+}; // namespace ggk
