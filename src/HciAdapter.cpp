@@ -344,8 +344,21 @@ bool HciAdapter::filterAndValidateEvents(uint16_t commandCode, std::vector<uint8
 		size_t dataLength = sizeof(Header) + pEvent->header.dataSize;
 		if (dataLength > buffer.size())
 		{
-			Logger::error(SSTR << "  + Not enough data for the current event");
+			Logger::error("  + Not enough data for the current event");
 			return false;
+		}
+
+		// !HACK! - If the device is connected, then powering off (Command Code 0x0005) returns a Device Disconnect Event (Event
+		//          Code 0xC) rather than a Command Complete Event (0x1) like it should.
+		//
+		//          We'll fake it here, converting that condition into a Command Complete Event (0x1).
+		if (commandCode == 0x0005 && pEvent->header.code == 0xC)
+		{
+			Logger::debug("!HACK! Converting invalid Disconect Event to Command Complete Event for power-off command");
+			pEvent->header.code = 1;
+			buffer = {0x1, 0x0, 0x0, 0x0, 0x7, 0x0, 0x5, 0x0, 0x0, 0x2, 0x6, 0x0, 0x0};
+			pEvent = reinterpret_cast<ResponseEvent *>(buffer.data());
+			dataLength = sizeof(Header) + pEvent->header.dataSize;
 		}
 
 		// Check the event type

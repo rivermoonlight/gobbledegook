@@ -37,7 +37,6 @@
 #include <list>
 #include <memory>
 
-#include "DBusInterface.h"
 #include "DBusObjectPath.h"
 
 namespace ggk {
@@ -45,6 +44,7 @@ namespace ggk {
 struct GattProperty;
 struct GattService;
 struct GattUuid;
+struct DBusInterface;
 
 struct DBusObject
 {

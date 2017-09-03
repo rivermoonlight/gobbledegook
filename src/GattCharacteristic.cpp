@@ -172,7 +172,7 @@ bool GattCharacteristic::callOnUpdatedValue(GDBusConnection *pConnection, void *
 		return false;
 	}
 
-	Logger::trace(SSTR << "Calling OnUpdatedValue function for interface at path '" << getPath() << "'");
+	Logger::debug(SSTR << "Calling OnUpdatedValue function for interface at path '" << getPath() << "'");
 	return pOnUpdatedValueFunc(*this, pConnection, pUserData);
 }
 

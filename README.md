@@ -329,6 +329,31 @@ Once you've done this, run the following commands to reload these settings and r
 	sudo service bluetooth stop
 	sudo service bluetooth start
 
+### Enabling D-Bus Permissions
+
+In order for our application to communicate over D-Bus, we'll need to ask D-Bus for an *owned name*, which will in effect be our address on D-Bus. D-Bus must be configured to grant us permissions to do this. We'll grant these permissions to user `root`.
+
+You'll need to locate the D-Bus permissions on your box. Likely, you'll find a set of files for this in the directory `/etc/dbus-1/system.d`. Create the file `/etc/dbus-1/system.d/gobbledegook.conf` and give it the contents:
+
+	<!DOCTYPE busconfig PUBLIC "-//freedesktop//DTD D-BUS Bus Configuration 1.0//EN" "http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd">
+	<busconfig>
+	  <policy user="root">
+	    <allow own="com.gobbledegook"/>
+	    <allow send_destination="com.gobbledegook"/>
+	    <allow send_destination="org.bluez"/>
+	  </policy>
+	  <policy at_console="true">
+	    <allow own="com.gobbledegook"/>
+	    <allow send_destination="com.gobbledegook"/>
+	    <allow send_destination="org.bluez"/>
+	  </policy>
+	  <policy context="default">
+	    <deny send_destination="com.gobbledegook"/>
+	  </policy>
+	</busconfig>
+
+Note the `com.gobbledegook` entries in your new `gobbledegook.conf` file. This must match the service name (the first parameter sent to `ggkStart()` in `standalone.cpp`). If you change the service name from `gobbledegook` to `clownface` in that call to `ggkStart()`, then you'll need to edit the `gobbledegook.conf` file and change all occurrances of `com.gobbledegook` to `com.clownface`.
+
 ### Enabling Bluetooth
 
 You don't need to do anything. this server will automatically power on the adapter, enable LE with advertisement.

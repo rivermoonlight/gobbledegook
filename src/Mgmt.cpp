@@ -139,8 +139,8 @@ Mgmt::ControllerInformation *Mgmt::getControllerInformation()
 // Set the adapter name and short name
 //
 // The inputs `name` and `shortName` may be truncated prior to setting them on the adapter. To ensure that `name` and
-// `shortName` conform to length specifications prior to calling this method, see the constants `kMaxNameLength` and
-// `kMaxShortNameLength`. In addition, the static methods `truncateName()` and `truncateShortName()` may be helpful.
+// `shortName` conform to length specifications prior to calling this method, see the constants `kMaxAdvertisingNameLength` and
+// `kMaxAdvertisingShortNameLength`. In addition, the static methods `truncateName()` and `truncateShortName()` may be helpful.
 //
 // Returns true on success, otherwise false
 bool Mgmt::setName(std::string name, std::string shortName)
@@ -179,7 +179,7 @@ bool Mgmt::setName(std::string name, std::string shortName)
 		return false;
 	}
 
-	Logger::trace(SSTR << "  + Name set to '" << request.name << "', short name set to '" << request.shortName << "'");
+	Logger::info(SSTR << "  + Name set to '" << request.name << "', short name set to '" << request.shortName << "'");
 	return true;
 }
 
@@ -214,24 +214,13 @@ bool Mgmt::setState(const char *pSettingName, uint16_t commandCode, uint16_t con
 	SResponse response;
 	if (!hciAdapter.sendCommand(request, response, sizeof(response)))
 	{
-		// Setting power to 0 doesn't actually return a response event if it's connected (it receives a disconnect instead).
-		//
-		// This is a failure on the part of GGK because it should be handling events more correctly. For now, though, we'll just
-		// turn those failures into debug log messages so our logs aren't cluttered up with false failures.
-		if (commandCode == 0x0005)
-		{
-			Logger::debug(SSTR << "  + Failed to set " << pSettingName << " state to: " << static_cast<int>(newState));
-		}
-		else
-		{
-			Logger::info(SSTR << "  + Failed to set " << pSettingName << " state to: " << static_cast<int>(newState));
-		}
+		Logger::warn(SSTR << "  + Failed to set " << pSettingName << " state to: " << static_cast<int>(newState));
 		return false;
 	}
 
 	response.toHost();
 
-	Logger::trace(SSTR << "  + " << pSettingName << " set to " << static_cast<int>(newState) << ": " << controllerSettingsString(response.currentSettings));
+	Logger::debug(SSTR << "  + " << pSettingName << " set to " << static_cast<int>(newState) << ": " << controllerSettingsString(response.currentSettings));
 	return true;
 }
 
@@ -331,24 +320,24 @@ std::string Mgmt::controllerSettingsString(uint32_t bits)
 // `name` is returned.
 std::string Mgmt::truncateName(const std::string &name)
 {
-	if (name.length() <= kMaxNameLength)
+	if (name.length() <= kMaxAdvertisingNameLength)
 	{
 		return name;
 	}
 
-	return name.substr(0, kMaxNameLength);
+	return name.substr(0, kMaxAdvertisingNameLength);
 }
 
 // Truncates the string `name` to the maximum allowed length for an adapter short-name. If `name` needs no truncation, a copy
 // of `name` is returned.
 std::string Mgmt::truncateShortName(const std::string &name)
 {
-	if (name.length() <= kMaxShortNameLength)
+	if (name.length() <= kMaxAdvertisingShortNameLength)
 	{
 		return name;
 	}
 
-	return name.substr(0, kMaxShortNameLength);
+	return name.substr(0, kMaxAdvertisingShortNameLength);
 }
 
 }; // namespace ggk

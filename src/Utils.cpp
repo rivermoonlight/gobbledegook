@@ -180,7 +180,7 @@ std::string Utils::hex(const uint8_t *pData, int count)
 		asciiData.push_back(line);
 	}
 
-	std::string result = "\n";
+	std::string result = "";
 	size_t dataSize = hexData.size();
 	for (size_t i = 0; i < dataSize; ++i)
 	{

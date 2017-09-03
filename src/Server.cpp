@@ -62,8 +62,6 @@
 // used to generate both: (1) the D-Bus object hierarchy and (2) the BlueZ services that occupy that hierarchy. In addition, we'll
 // take that a step further by including the implementation right inside the description. Everything in one place.
 //
-// Well, almost one place (hint: Take a quick look at Globals.h - that's where your server name is.)
-//
 // >>
 // >>>  MANAGING SERVER DATA
 // >>
@@ -160,6 +158,8 @@
 //     https://www.freedesktop.org/software/gstreamer-sdk/data/docs/latest/glib/glib-GVariantType.html
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+#include <algorithm>
+
 #include "Server.h"
 #include "ServerUtils.h"
 #include "Utils.h"
@@ -171,6 +171,7 @@
 #include "GattUuid.h"
 #include "GattCharacteristic.h"
 #include "GattDescriptor.h"
+#include "Logger.h"
 
 namespace ggk {
 
@@ -195,11 +196,45 @@ std::shared_ptr<Server> TheServer = nullptr;
 // Object implementation
 // ---------------------------------------------------------------------------------------------------------------------------------
 
-// Create (and completely describe) a server
+// Our constructor builds our entire server description
 //
-// For details, head up to the top of this file.
-Server::Server(GGKServerDataGetter getter, GGKServerDataSetter setter)
+// serviceName: The name of our server (collectino of services)
+//
+//     This is used to build the path for our Bluetooth services. It also provides the base for the D-Bus owned name (see
+//     getOwnedName.)
+//
+//     This value will be stored as lower-case only.
+//
+//     Retrieve this value using the `getName()` method.
+//
+// advertisingName: The name for this controller, as advertised over LE
+//
+//     IMPORTANT: Setting the advertisingName will change the system-wide name of the device. If that's not what you want, set
+//     BOTH advertisingName and advertisingShortName to as empty string ("") to prevent setting the advertising
+//     name.
+//
+//     Retrieve this value using the `getAdvertisingName()` method.
+//
+// advertisingShortName: The short name for this controller, as advertised over LE
+//
+//     According to the spec, the short name is used in case the full name doesn't fit within Extended Inquiry Response (EIR) or
+//     Advertising Data (AD).
+//
+//     IMPORTANT: Setting the advertisingName will change the system-wide name of the device. If that's not what you want, set
+//     BOTH advertisingName and advertisingShortName to as empty string ("") to prevent setting the advertising
+//     name.
+//
+//     Retrieve this value using the `getAdvertisingShortName()` method.
+//
+Server::Server(const std::string &serviceName, const std::string &advertisingName, const std::string &advertisingShortName, 
+	GGKServerDataGetter getter, GGKServerDataSetter setter)
 {
+	// Save our names
+	this->serviceName = serviceName;
+	std::transform(this->serviceName.begin(), this->serviceName.end(), this->serviceName.begin(), ::tolower);
+	this->advertisingName = advertisingName;
+	this->advertisingShortName = advertisingShortName;
+
 	// Register getter & setter for server data
 	dataGetter = getter;
 	dataSetter = setter;
@@ -216,7 +251,7 @@ Server::Server(GGKServerDataGetter getter, GGKServerDataSetter setter)
 	//
 
 	// Create the root D-Bus object and push it into the list
-	objects.push_back(DBusObject(DBusObjectPath() + "com" + kServerName));
+	objects.push_back(DBusObject(DBusObjectPath() + "com" + getServiceName()));
 
 	// We're going to build off of this object, so we need to get a reference to the instance of the object as it resides in the
 	// list (and not the object that would be added to the list.)

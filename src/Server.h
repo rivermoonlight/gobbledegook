@@ -35,11 +35,13 @@
 
 #pragma once
 
+#include <gio/gio.h>
 #include <string>
+#include <vector>
 #include <list>
 #include <memory>
 
-#include "DBusInterface.h"
+#include "../include/Gobbledegook.h"
 #include "DBusObject.h"
 
 namespace ggk {
@@ -49,6 +51,9 @@ namespace ggk {
 //
 
 struct GattProperty;
+struct GattCharacteristic;
+struct DBusInterface;
+struct DBusObjectPath;
 
 //
 // Implementation
@@ -91,12 +96,77 @@ struct Server
 	// Returns our registered data setter
 	GGKServerDataSetter getDataSetter() const { return dataSetter; }
 
+	// advertisingName: The name for this controller, as advertised over LE
+	//
+	// This is set from the constructor.
+	//
+	// IMPORTANT: Setting the advertisingName will change the system-wide name of the device. If that's not what you want, set
+	// BOTH advertisingName and advertisingShortName to as empty string ("") to prevent setting the advertising
+	// name.
+	const std::string &getAdvertisingName() const { return advertisingName; }
+
+	// advertisingShortName: The short name for this controller, as advertised over LE
+	//
+	// According to the spec, the short name is used in case the full name doesn't fit within Extended Inquiry Response (EIR) or
+	// Advertising Data (AD).
+	//
+	// This is set from the constructor.
+	//
+	// IMPORTANT: Setting the advertisingName will change the system-wide name of the device. If that's not what you want, set
+	// BOTH advertisingName and advertisingShortName to as empty string ("") to prevent setting the advertising
+	// name.
+	const std::string &getAdvertisingShortName() const { return advertisingShortName; }
+
+	// serviceName: The name of our server (collectino of services)
+	//
+	// This is set from the constructor.
+	//
+	// This is used to build the path for our Bluetooth services (and we'll go ahead and use it as the owned name as well for
+	// consistency.)
+	const std::string &getServiceName() const { return serviceName; }
+
+	// Our owned name
+	//
+	// D-Bus uses owned names to locate servers on the bus. Think of this as a namespace within D-Bus. We building this with the
+	// server name to keep things simple.
+	std::string getOwnedName() const { return std::string("com.") + getServiceName(); }
+
 	//
 	// Initialization
 	//
 
 	// Our constructor builds our entire server description
-	Server(GGKServerDataGetter getter, GGKServerDataSetter setter);
+	//
+	// serviceName: The name of our server (collectino of services)
+	//
+	//     This is used to build the path for our Bluetooth services. It also provides the base for the D-Bus owned name (see
+	//     getOwnedName.)
+	//
+	//     This value will be stored as lower-case only.
+	//
+	//     Retrieve this value using the `getName()` method.
+	//
+	// advertisingName: The name for this controller, as advertised over LE
+	//
+	//     IMPORTANT: Setting the advertisingName will change the system-wide name of the device. If that's not what you want, set
+	//     BOTH advertisingName and advertisingShortName to as empty string ("") to prevent setting the advertising
+	//     name.
+	//
+	//     Retrieve this value using the `getAdvertisingName()` method.
+	//
+	// advertisingShortName: The short name for this controller, as advertised over LE
+	//
+	//     According to the spec, the short name is used in case the full name doesn't fit within Extended Inquiry Response (EIR) or
+	//     Advertising Data (AD).
+	//
+	//     IMPORTANT: Setting the advertisingName will change the system-wide name of the device. If that's not what you want, set
+	//     BOTH advertisingName and advertisingShortName to as empty string ("") to prevent setting the advertising
+	//     name.
+	//
+	//     Retrieve this value using the `getAdvertisingShortName()` method.
+	//
+	Server(const std::string &serviceName, const std::string &advertisingName, const std::string &advertisingShortName, 
+		GGKServerDataGetter getter, GGKServerDataSetter setter);
 
 	//
 	// Utilitarian
@@ -142,6 +212,35 @@ private:
 
 	// The setter callback that is responsible for storing current server data that is shared over Bluetooth
 	GGKServerDataSetter dataSetter;
+
+	// advertisingName: The name for this controller, as advertised over LE
+	//
+	// This is set from the constructor.
+	//
+	// IMPORTANT: Setting the advertisingName will change the system-wide name of the device. If that's not what you want, set
+	// BOTH advertisingName and advertisingShortName to as empty string ("") to prevent setting the advertising
+	// name.
+	std::string advertisingName;
+
+	// advertisingShortName: The short name for this controller, as advertised over LE
+	//
+	// According to the spec, the short name is used in case the full name doesn't fit within Extended Inquiry Response (EIR) or
+	// Advertising Data (AD).
+	//
+	// This is set from the constructor.
+	//
+	// IMPORTANT: Setting the advertisingName will change the system-wide name of the device. If that's not what you want, set
+	// BOTH advertisingName and advertisingShortName to as empty string ("") to prevent setting the advertising
+	// name.
+	std::string advertisingShortName;
+
+	// serviceName: The name of our server (collectino of services)
+	//
+	// This is set from the constructor.
+	//
+	// This is used to build the path for our Bluetooth services (and we'll go ahead and use it as the owned name as well for
+	// consistency.)
+	std::string serviceName;
 };
 
 // Our one and only server. It's a global.

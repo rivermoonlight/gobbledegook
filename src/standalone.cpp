@@ -293,7 +293,13 @@ int main(int argc, char **ppArgv)
 	// Start the server's ascync processing
 	//
 	// This starts the server on a thread and begins the initialization process
-	if (!ggkStart(dataGetter, dataSetter, kMaxAsyncInitTimeoutMS))
+	//
+	// !!!IMPORTANT!!!
+	//
+	//     This first parameter (the service name) must match tha name configured in the D-Bus permissions. See the Readme.md file
+	//     for more information.
+	//
+	if (!ggkStart("gobbledegook", "Gobbledegook", "Gobbledegook", dataGetter, dataSetter, kMaxAsyncInitTimeoutMS))
 	{
 		return -1;
 	}

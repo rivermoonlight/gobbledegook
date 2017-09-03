@@ -45,6 +45,7 @@
 #include "Globals.h"
 #include "DBusObjectPath.h"
 #include "Logger.h"
+#include "Server.h"
 
 namespace ggk {
 
@@ -104,7 +105,7 @@ struct DBusMethod
 			return;
 		}
 
-		Logger::trace(SSTR << "Calling method: [" << path << "]:[" << interfaceName << "]:[" << methodName << "]");
+		Logger::info(SSTR << "Calling method: [" << path << "]:[" << interfaceName << "]:[" << methodName << "]");
 		callback(*static_cast<const T *>(pOwner), pConnection, methodName, pParameters, pInvocation, pUserData);
 	}
 

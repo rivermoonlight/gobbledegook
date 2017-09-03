@@ -38,7 +38,6 @@
 
 #include "TickEvent.h"
 #include "DBusMethod.h"
-#include "DBusObjectPath.h"
 
 namespace ggk {
 
@@ -49,6 +48,7 @@ namespace ggk {
 struct DBusInterface;
 struct GattProperty;
 struct DBusObject;
+struct DBusObjectPath;
 
 // ---------------------------------------------------------------------------------------------------------------------------------
 // Useful Lambdas

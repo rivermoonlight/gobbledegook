@@ -50,10 +50,10 @@ struct Mgmt
 	//
 
 	// The length of the controller's name (not including null terminator)
-	static const int kMaxNameLength = 248;
+	static const int kMaxAdvertisingNameLength = 248;
 
 	// The length of the controller's short name (not including null terminator)
-	static const int kMaxShortNameLength = 10;
+	static const int kMaxAdvertisingShortNameLength = 10;
 
 	//
 	// Types
@@ -127,8 +127,8 @@ struct Mgmt
 	// Set the adapter name and short name
 	//
 	// The inputs `name` and `shortName` may be truncated prior to setting them on the adapter. To ensure that `name` and
-	// `shortName` conform to length specifications prior to calling this method, see the constants `kMaxNameLength` and
-	// `kMaxShortNameLength`. In addition, the static methods `truncateName()` and `truncateShortName()` may be helpful.
+	// `shortName` conform to length specifications prior to calling this method, see the constants `kMaxAdvertisingNameLength` and
+	// `kMaxAdvertisingShortNameLength`. In addition, the static methods `truncateName()` and `truncateShortName()` may be helpful.
 	//
 	// Returns true on success, otherwise false
 	bool setName(std::string name, std::string shortName);

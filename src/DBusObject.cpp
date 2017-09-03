@@ -238,7 +238,7 @@ std::string DBusObject::generateIntrospectionXML(int depth) const
 	}
 
 	xml += prefix + "<node name='" + getPathNode().toString() + "'>\n";
-	xml += prefix + "  <annotation name='" + kServerOwnedName + ".DBusObject.path' value='" + getPath().toString() + "' />\n";
+	xml += prefix + "  <annotation name='" + TheServer->getServiceName() + ".DBusObject.path' value='" + getPath().toString() + "' />\n";
 
 	for (std::shared_ptr<const DBusInterface> interface : interfaces)
 	{

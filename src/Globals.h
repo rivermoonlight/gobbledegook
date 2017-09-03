@@ -34,38 +34,10 @@
 
 #include <string>
 
-// The name for this controller, as advertised over LE
-//
-// IMPORTANT: Setting the advertisingName will change the system-wide name of the device. If that's not what you want, set BOTH
-// kCustomGlobalAdvertisingName and kCustomGlobalAdvertisingShortName to as empty string ("") to prevent setting the advertising
-// name.
-#define kCustomGlobalAdvertisingName std::string("Gobbledegook")
-
-// The short name for this controller, as advertised over LE
-//
-// According to the spec, the short name is used in case the full name doesn't fit within Extended Inquiry Response (EIR) or
-// Advertising Data (AD).
-//
-// IMPORTANT: Setting the advertisingName will change the system-wide name of the device. If that's not what you want, set BOTH
-// kCustomGlobalAdvertisingName and kCustomGlobalAdvertisingShortName to as empty string ("") to prevent setting the advertising
-// name.
-#define kCustomGlobalAdvertisingShortName std::string("Gobbledegook")
-
-// The name of our server (collectino of services)
-//
-// This is used to build the path for our Bluetooth services (and we'll go ahead and use it as the owned name as well for
-// consistency.)
-#define kServerName std::string("gobbledegook")
-
-// Our owned name
-//
-// D-Bus uses owned names to locate servers on the bus. Think of this as a namespace within D-Bus. Building this with the server
-// name, though it's not necessary to do so. We can call this anything we want, really.
-#define kServerOwnedName (std::string("com.") + kServerName)
-
 //
 // Custom defined errors
 //
+
 // In order to avoid confusion, we should use the owned name here, so errors are like extensions to that name. This way, if a
 // client gets one of these errors, it'll be clear which server it came from.
-#define kErrorNotImplemented (kServerOwnedName + ".NotImplemented")
+#define kErrorNotImplemented (TheServer->getOwnedName() + ".NotImplemented")

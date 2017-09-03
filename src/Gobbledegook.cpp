@@ -47,6 +47,7 @@
 #include <string.h>
 #include <string>
 #include <thread>
+#include <memory>
 #include <deque>
 #include <mutex>
 
@@ -403,7 +404,41 @@ int ggkWait()
 //
 // Similarly, the pointer to data returned to the data getter should point to non-volatile memory so that the server can use it
 // safely for an indefinite period of time.
-int ggkStart(GGKServerDataGetter getter, GGKServerDataSetter setter, int maxAsyncInitTimeoutMS)
+//
+// pServiceName: The name of our server (collectino of services)
+//
+//     !!!IMPORTANT!!!
+//
+//     This name must match tha name configured in the D-Bus permissions. See the Readme.md file for more information.
+//
+//     This is used to build the path for our Bluetooth services. It also provides the base for the D-Bus owned name (see
+//     getOwnedName.)
+//
+//     This value will be stored as lower-case only.
+//
+//     Retrieve this value using the `getName()` method
+//
+// pAdvertisingName: The name for this controller, as advertised over LE
+//
+//     IMPORTANT: Setting the advertisingName will change the system-wide name of the device. If that's not what you want, set
+//     BOTH advertisingName and advertisingShortName to as empty string ("") to prevent setting the advertising
+//     name.
+//
+//     Retrieve this value using the `getAdvertisingName()` method
+//
+// pAdvertisingShortName: The short name for this controller, as advertised over LE
+//
+//     According to the spec, the short name is used in case the full name doesn't fit within Extended Inquiry Response (EIR) or
+//     Advertising Data (AD).
+//
+//     IMPORTANT: Setting the advertisingName will change the system-wide name of the device. If that's not what you want, set
+//     BOTH advertisingName and advertisingShortName to as empty string ("") to prevent setting the advertising
+//     name.
+//
+//     Retrieve this value using the `getAdvertisingShortName()` method
+//
+int ggkStart(const char *pServiceName, const char *pAdvertisingName, const char *pAdvertisingShortName, 
+	GGKServerDataGetter getter, GGKServerDataSetter setter, int maxAsyncInitTimeoutMS)
 {
 	//
 	// Start by capturing the GLib output
@@ -446,7 +481,7 @@ int ggkStart(GGKServerDataGetter getter, GGKServerDataSetter setter, int maxAsyn
 	Logger::info("Starting GGK server");
 
 	// Allocate our server
-	TheServer = std::make_shared<Server>(getter, setter);
+	TheServer = std::make_shared<Server>(pServiceName, pAdvertisingName, pAdvertisingShortName, getter, setter);
 
 	// Start our server thread
 	try
