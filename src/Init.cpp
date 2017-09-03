@@ -762,14 +762,13 @@ void configureAdapter()
 
 		if (advertisingName != pInfo->name || advertisingShortName != pInfo->shortName)
 		{
+			Logger::info(SSTR << "Setting advertising name to '" << advertisingName << "' (with short name: '" << advertisingShortName << "')");
 			if (!mgmt.setName(advertisingName.c_str(), advertisingShortName.c_str()))
 			{
 				setRetryFailure();
 				return;
 			}
 		}
-
-		Logger::info(SSTR << "BLE advertising name set to '" << advertisingName << "' (with short name: '" << advertisingShortName << "')");
 	}
 
 	// Turn it back on

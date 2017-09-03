@@ -478,7 +478,7 @@ int ggkStart(const char *pServiceName, const char *pAdvertisingName, const char 
 		}
 	}, nullptr);
 
-	Logger::info("Starting GGK server");
+	Logger::info(SSTR << "Starting GGK server '" << pAdvertisingName << "'");
 
 	// Allocate our server
 	TheServer = std::make_shared<Server>(pServiceName, pAdvertisingName, pAdvertisingShortName, getter, setter);
