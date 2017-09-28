@@ -57,129 +57,390 @@
 #include "HciAdapter.h"
 #include "HciSocket.h"
 #include "Utils.h"
+#include "Mgmt.h"
 #include "Logger.h"
 
 namespace ggk {
 
-static const int kMinCommandCode = 0x0001;
-static const int kMaxCommandCode = 0x0043;
-static const char *kCommandCodeNames[kMaxCommandCode] =
+// Our event thread listens for events coming from the adapter and deals with them appropriately
+std::thread HciAdapter::eventThread;
+
+const char * const HciAdapter::kCommandCodeNames[kMaxCommandCode + 1] =
 {
-	"Read Management Version Information Command", // 0x0001
-	"Read Management Supported Commands Command", // 0x0002
-	"Read Controller Index List Command", // 0x0003
-	"Read Controller Information Command", // 0x0004
-	"Set Powered Command", // 0x0005
-	"Set Discoverable Command", // 0x0006
-	"Set Connectable Command", // 0x0007
-	"Set Fast Connectable Command", // 0x0008
-	"Set Bondable Command", // 0x0009
-	"Set Link Security Command", // 0x000A
-	"Set Secure Simple Pairing Command", // 0x000B
-	"Set High Speed Command", // 0x000C
-	"Set Low Energy Command", // 0x000D
-	"Set Device Class", // 0x000E
-	"Set Local Name Command", // 0x000F
-	"Add UUID Command", // 0x0010
-	"Remove UUID Command", // 0x0011
-	"Load Link Keys Command", // 0x0012
-	"Load Long Term Keys Command", // 0x0013
-	"Disconnect Command", // 0x0014
-	"Get Connections Command", // 0x0015
-	"PIN Code Reply Command", // 0x0016
-	"PIN Code Negative Reply Command", // 0x0017
-	"Set IO Capability Command", // 0x0018
-	"Pair Device Command", // 0x0019
-	"Cancel Pair Device Command", // 0x001A
-	"Unpair Device Command", // 0x001B
-	"User Confirmation Reply Command", // 0x001C
-	"User Confirmation Negative Reply Command", // 0x001D
-	"User Passkey Reply Command", // 0x001E
-	"User Passkey Negative Reply Command", // 0x001F
-	"Read Local Out Of Band Data Command", // 0x0020
-	"Add Remote Out Of Band Data Command", // 0x0021
-	"Remove Remote Out Of Band Data Command", // 0x0022
-	"Start Discovery Command", // 0x0023
-	"Stop Discovery Command", // 0x0024
-	"Confirm Name Command", // 0x0025
-	"Block Device Command", // 0x0026
-	"Unblock Device Command", // 0x0027
-	"Set Device ID Command", // 0x0028
-	"Set Advertising Command", // 0x0029
-	"Set BR/EDR Command", // 0x002A
-	"Set Static Address Command", // 0x002B
-	"Set Scan Parameters Command", // 0x002C
-	"Set Secure Connections Command", // 0x002D
-	"Set Debug Keys Command", // 0x002E
-	"Set Privacy Command", // 0x002F
-	"Load Identity Resolving Keys Command", // 0x0030
-	"Get Connection Information Command", // 0x0031
-	"Get Clock Information Command", // 0x0032
-	"Add Device Command", // 0x0033
-	"Remove Device Command", // 0x0034
-	"Load Connection Parameters Command", // 0x0035
-	"Read Unconfigured Controller Index List Command", // 0x0036
+	"Invalid Command",                                   // 0x0000
+	"Read Version Information Command",                  // 0x0001
+	"Read Supported Commands Command",                   // 0x0002
+	"Read Controller Index List Command",                // 0x0003
+	"Read Controller Information Command",               // 0x0004
+	"Set Powered Command",                               // 0x0005
+	"Set Discoverable Command",                          // 0x0006
+	"Set Connectable Command",                           // 0x0007
+	"Set Fast Connectable Command",                      // 0x0008
+	"Set Bondable Command",                              // 0x0009
+	"Set Link Security Command",                         // 0x000A
+	"Set Secure Simple Pairing Command",                 // 0x000B
+	"Set High Speed Command",                            // 0x000C
+	"Set Low Energy Command",                            // 0x000D
+	"Set Device Class",                                  // 0x000E
+	"Set Local Name Command",                            // 0x000F
+	"Add UUID Command",                                  // 0x0010
+	"Remove UUID Command",                               // 0x0011
+	"Load Link Keys Command",                            // 0x0012
+	"Load Long Term Keys Command",                       // 0x0013
+	"Disconnect Command",                                // 0x0014
+	"Get Connections Command",                           // 0x0015
+	"PIN Code Reply Command",                            // 0x0016
+	"PIN Code Negative Reply Command",                   // 0x0017
+	"Set IO Capability Command",                         // 0x0018
+	"Pair Device Command",                               // 0x0019
+	"Cancel Pair Device Command",                        // 0x001A
+	"Unpair Device Command",                             // 0x001B
+	"User Confirmation Reply Command",                   // 0x001C
+	"User Confirmation Negative Reply Command",          // 0x001D
+	"User Passkey Reply Command",                        // 0x001E
+	"User Passkey Negative Reply Command",               // 0x001F
+	"Read Local Out Of Band Data Command",               // 0x0020
+	"Add Remote Out Of Band Data Command",               // 0x0021
+	"Remove Remote Out Of Band Data Command",            // 0x0022
+	"Start Discovery Command",                           // 0x0023
+	"Stop Discovery Command",                            // 0x0024
+	"Confirm Name Command",                              // 0x0025
+	"Block Device Command",                              // 0x0026
+	"Unblock Device Command",                            // 0x0027
+	"Set Device ID Command",                             // 0x0028
+	"Set Advertising Command",                           // 0x0029
+	"Set BR/EDR Command",                                // 0x002A
+	"Set Static Address Command",                        // 0x002B
+	"Set Scan Parameters Command",                       // 0x002C
+	"Set Secure Connections Command",                    // 0x002D
+	"Set Debug Keys Command",                            // 0x002E
+	"Set Privacy Command",                               // 0x002F
+	"Load Identity Resolving Keys Command",              // 0x0030
+	"Get Connection Information Command",                // 0x0031
+	"Get Clock Information Command",                     // 0x0032
+	"Add Device Command",                                // 0x0033
+	"Remove Device Command",                             // 0x0034
+	"Load Connection Parameters Command",                // 0x0035
+	"Read Unconfigured Controller Index List Command",   // 0x0036
 	"Read Controller Configuration Information Command", // 0x0037
-	"Set External Configuration Command", // 0x0038
-	"Set Public Address Command", // 0x0039
-	"Start Service Discovery Command", // 0x003a
-	"Read Local Out Of Band Extended Data Command", // 0x003b
-	"Read Extended Controller Index List Command", // 0x003c
-	"Read Advertising Features Command", // 0x003d
-	"Add Advertising Command", // 0x003e
-	"Remove Advertising Command", // 0x003f
-	"Get Advertising Size Information Command", // 0x0040
-	"Start Limited Discovery Command", // 0x0041
-	"Read Extended Controller Information Command", // 0x0042
+	"Set External Configuration Command",                // 0x0038
+	"Set Public Address Command",                        // 0x0039
+	"Start Service Discovery Command",                   // 0x003a
+	"Read Local Out Of Band Extended Data Command",      // 0x003b
+	"Read Extended Controller Index List Command",       // 0x003c
+	"Read Advertising Features Command",                 // 0x003d
+	"Add Advertising Command",                           // 0x003e
+	"Remove Advertising Command",                        // 0x003f
+	"Get Advertising Size Information Command",          // 0x0040
+	"Start Limited Discovery Command",                   // 0x0041
+	"Read Extended Controller Information Command",      // 0x0042
 	// NOTE: The documentation at https://git.kernel.org/pub/scm/bluetooth/bluez.git/tree/doc/mgmt-api.txt) states that the command
 	// code for "Set Appearance Command" is 0x0042. It also says this about the previous command in the list ("Read Extended
 	// Controller Information Command".) This is likely an error, so I'm following the order of the commands as they appear in the
 	// documentation. This makes "Set Appearance Code" have a command code of 0x0043.
-	"Set Appearance Command", // 0x0043
+	"Set Appearance Command"                             // 0x0043
 };
 
-static const int kMinEventType = 0x0001;
-static const int kMaxEventType = 0x0025;
-static const char *kEventTypeNames[kMaxEventType] =
+const char * const HciAdapter::kEventTypeNames[kMaxEventType + 1] =
 {
-	"Command Complete Event", // 0x0001
-	"Command Status Event", // 0x0002
-	"Controller Error Event", // 0x0003
-	"Index Added Event", // 0x0004
-	"Index Removed Event", // 0x0005
-	"New Settings Event", // 0x0006
-	"Class Of Device Changed Event", // 0x0007
-	"Local Name Changed Event", // 0x0008
-	"New Link Key Event", // 0x0009
-	"New Long Term Key Event", // 0x000A
-	"Device Connected Event", // 0x000B
-	"Device Disconnected Event", // 0x000C
-	"Connect Failed Event", // 0x000D
-	"PIN Code Request Event", // 0x000E
-	"User Confirmation Request Event", // 0x000F
-	"User Passkey Request Event", // 0x0010
-	"Authentication Failed Event", // 0x0011
-	"Device Found Event", // 0x0012
-	"Discovering Event", // 0x0013
-	"Device Blocked Event", // 0x0014
-	"Device Unblocked Event", // 0x0015
-	"Device Unpaired Event", // 0x0016
-	"Passkey Notify Event", // 0x0017
-	"New Identity Resolving Key Event", // 0x0018
-	"New Signature Resolving Key Event", // 0x0019
-	"Device Added Event", // 0x001a
-	"Device Removed Event", // 0x001b
-	"New Connection Parameter Event", // 0x001c
-	"Unconfigured Index Added Event", // 0x001d
-	"Unconfigured Index Removed Event", // 0x001e
-	"New Configuration Options Event", // 0x001f
-	"Extended Index Added Event", // 0x0020
-	"Extended Index Removed Event", // 0x0021
-	"Local Out Of Band Extended Data Updated Event", // 0x0022
-	"Advertising Added Event", // 0x0023
-	"Advertising Removed Event", // 0x0024
-	"Extended Controller Information Changed Event" // 0x0025
+	"Invalid Event",                                     // 0x0000
+	"Command Complete Event",                            // 0x0001
+	"Command Status Event",                              // 0x0002
+	"Controller Error Event",                            // 0x0003
+	"Index Added Event",                                 // 0x0004
+	"Index Removed Event",                               // 0x0005
+	"New Settings Event",                                // 0x0006
+	"Class Of Device Changed Event",                     // 0x0007
+	"Local Name Changed Event",                          // 0x0008
+	"New Link Key Event",                                // 0x0009
+	"New Long Term Key Event",                           // 0x000A
+	"Device Connected Event",                            // 0x000B
+	"Device Disconnected Event",                         // 0x000C
+	"Connect Failed Event",                              // 0x000D
+	"PIN Code Request Event",                            // 0x000E
+	"User Confirmation Request Event",                   // 0x000F
+	"User Passkey Request Event",                        // 0x0010
+	"Authentication Failed Event",                       // 0x0011
+	"Device Found Event",                                // 0x0012
+	"Discovering Event",                                 // 0x0013
+	"Device Blocked Event",                              // 0x0014
+	"Device Unblocked Event",                            // 0x0015
+	"Device Unpaired Event",                             // 0x0016
+	"Passkey Notify Event",                              // 0x0017
+	"New Identity Resolving Key Event",                  // 0x0018
+	"New Signature Resolving Key Event",                 // 0x0019
+	"Device Added Event",                                // 0x001a
+	"Device Removed Event",                              // 0x001b
+	"New Connection Parameter Event",                    // 0x001c
+	"Unconfigured Index Added Event",                    // 0x001d
+	"Unconfigured Index Removed Event",                  // 0x001e
+	"New Configuration Options Event",                   // 0x001f
+	"Extended Index Added Event",                        // 0x0020
+	"Extended Index Removed Event",                      // 0x0021
+	"Local Out Of Band Extended Data Updated Event",     // 0x0022
+	"Advertising Added Event",                           // 0x0023
+	"Advertising Removed Event",                         // 0x0024
+	"Extended Controller Information Changed Event"      // 0x0025
 };
+
+const char * const HciAdapter::kStatusCodes[kMaxStatusCode + 1] =
+{
+	"Success",                                           // 0x00
+	"Unknown Command",                                   // 0x01
+	"Not Connected",                                     // 0x02
+	"Failed",                                            // 0x03
+	"Connect Failed",                                    // 0x04
+	"Authentication Failed",                             // 0x05
+	"Not Paired",                                        // 0x06
+	"No Resources",                                      // 0x07
+	"Timeout",                                           // 0x08
+	"Already Connected",                                 // 0x09
+	"Busy",                                              // 0x0A
+	"Rejected",                                          // 0x0B
+	"Not Supported",                                     // 0x0C
+	"Invalid Parameters",                                // 0x0D
+	"Disconnected",                                      // 0x0E
+	"Not Powered",                                       // 0x0F
+	"Cancelled",                                         // 0x10
+	"Invalid Index",                                     // 0x11
+	"RFKilled",                                          // 0x12
+	"Already Paired",                                    // 0x13
+	"Permission Denied",                                 // 0x14
+};
+
+HciAdapter::AdapterSettings HciAdapter::getAdapterSettings()
+{
+	return adapterSettings;
+}
+
+HciAdapter::ControllerInformation HciAdapter::getControllerInformation()
+{
+	return controllerInformation;
+}
+
+HciAdapter::VersionInformation HciAdapter::getVersionInformation()
+{
+	return versionInformation;
+}
+
+HciAdapter::LocalName HciAdapter::getLocalName()
+{
+	return localName;
+}
+
+// Our thread interface, which simply launches our the thread processor on our HciAdapter instance
+void runEventThread()
+{
+	HciAdapter::getInstance().runEventThread();
+}
+
+// Event processor, responsible for receiving events from the HCI socket
+//
+// This mehtod should not be called directly. Rather, it runs continuously on a thread until the server shuts down
+void HciAdapter::runEventThread()
+{
+	Logger::trace("Entering the HciAdapter event thread");
+
+	while (ggkGetServerRunState() <= ERunning)
+	{
+		// Read the next event, waiting until one arrives
+		std::vector<uint8_t> responsePacket = std::vector<uint8_t>();
+		if (!hciSocket.read(responsePacket))
+		{
+			break;
+		}
+
+		// Do we have enough to check the event code?
+		if (responsePacket.size() < 2)
+		{
+			Logger::error(SSTR << "Invalid command response: too short");
+			continue;
+		}
+
+		// Our response, as a usable object type
+		uint16_t eventCode = Utils::endianToHost(*reinterpret_cast<uint16_t *>(responsePacket.data()));
+
+		// Ensure our event code is valid
+		if (eventCode < HciAdapter::kMinEventType || eventCode > HciAdapter::kMaxEventType)
+		{
+			Logger::error(SSTR << "Invalid command response: event code (" << eventCode << ") out of range");
+			continue;
+		}
+
+		switch(eventCode)
+		{
+			// Command complete event
+			case Mgmt::ECommandCompleteEvent:
+			{
+				// Extract our event
+				CommandCompleteEvent event = *reinterpret_cast<CommandCompleteEvent *>(responsePacket.data());
+
+				// Fixup endian
+				event.toHost();
+
+				// Log it
+				Logger::debug(event.debugText());
+
+				// Point to the data following the event
+				uint8_t *data = responsePacket.data() + sizeof(CommandCompleteEvent);
+				size_t dataLen = responsePacket.size() - sizeof(CommandCompleteEvent);
+
+				switch(event.commandCode)
+				{
+					// We just log the version/revision info
+					case Mgmt::EReadVersionInformationCommand:
+					{
+						// Verify the size is what we expect
+						if (dataLen != sizeof(VersionInformation))
+						{
+							Logger::error("Invalid data length");
+							return;
+						}
+
+						versionInformation = *reinterpret_cast<VersionInformation *>(data);
+						versionInformation.toHost();
+						Logger::debug(versionInformation.debugText());
+						break;
+					}
+					case Mgmt::EReadControllerInformationCommand:
+					{
+						if (dataLen != sizeof(ControllerInformation))
+						{
+							Logger::error("Invalid data length");
+							return;
+						}
+
+						controllerInformation = *reinterpret_cast<ControllerInformation *>(data);
+						controllerInformation.toHost();
+						Logger::debug(controllerInformation.debugText());
+						break;
+					}
+					case Mgmt::ESetLocalNameCommand:
+					{
+						if (dataLen != sizeof(LocalName))
+						{
+							Logger::error("Invalid data length");
+							return;
+						}
+
+						localName = *reinterpret_cast<LocalName *>(data);
+						Logger::info(localName.debugText());
+						break;
+					}
+					case Mgmt::ESetPoweredCommand:
+					case Mgmt::ESetBREDRCommand:
+					case Mgmt::ESetSecureConnectionsCommand:
+					case Mgmt::ESetBondableCommand:
+					case Mgmt::ESetConnectableCommand:
+					case Mgmt::ESetLowEnergyCommand:
+					case Mgmt::ESetAdvertisingCommand:
+					{
+						if (dataLen != sizeof(AdapterSettings))
+						{
+							Logger::error("Invalid data length");
+							return;
+						}
+
+						adapterSettings = *reinterpret_cast<AdapterSettings *>(data);
+						adapterSettings.toHost();
+
+						Logger::debug(adapterSettings.debugText());
+						break;
+					}
+				}
+				break;
+			}
+			// Command status event
+			case Mgmt::ECommandStatusEvent:
+			{
+				// Extract our event
+				CommandStatusEvent event = *reinterpret_cast<CommandStatusEvent *>(responsePacket.data());
+
+				// Fixup endian
+				event.toHost();
+
+				// Log it
+				Logger::debug(event.debugText());
+
+				break;
+			}
+			// Command status event
+			case Mgmt::EDeviceConnectedEvent:
+			{
+				// Extract our event
+				DeviceConnectedEvent event = *reinterpret_cast<DeviceConnectedEvent *>(responsePacket.data());
+
+				// Fixup endian
+				event.toHost();
+
+				// Log it
+				Logger::debug(event.debugText());
+
+				// Track our connection count
+				activeConnections += 1;
+
+				break;
+			}
+			// Command status event
+			case Mgmt::EDeviceDisconnectedEvent:
+			{
+				// Extract our event
+				DeviceDisconnectedEvent event = *reinterpret_cast<DeviceDisconnectedEvent *>(responsePacket.data());
+
+				// Fixup endian
+				event.toHost();
+
+				// Log it
+				Logger::debug(event.debugText());
+
+				// Track our connection count
+				activeConnections -= 1;
+
+				break;
+			}
+			// Unsupported
+			default:
+			{
+				if (eventCode >= kMinEventType && eventCode <= kMaxEventType)
+				{
+					Logger::error("Unsupported response event type: " + Utils::hex(eventCode) + " (" + kEventTypeNames[eventCode] + ")");
+				}
+				else
+				{
+					Logger::error("Invalid event type response: " + Utils::hex(eventCode));					
+				}
+			}
+		}
+	}
+
+	Logger::trace("Leaving the HciAdapter event thread");
+}
+
+// Reads current values from the controller
+//
+// This effectively requests data from the controller but that data may not be available instantly, but within a few
+// milliseconds. Therefore, it is not recommended attempt to retrieve the results from their accessors immediately.
+void HciAdapter::sync(uint16_t controllerIndex)
+{
+	HciAdapter::HciHeader request;
+	request.code = Mgmt::EReadVersionInformationCommand;
+	request.controllerId = HciAdapter::kNonController;
+	request.dataSize = 0;
+
+	if (!HciAdapter::getInstance().sendCommand(request))
+	{
+		Logger::error("Failed to get version information");
+	}
+
+	request.code = Mgmt::EReadControllerInformationCommand;
+	request.controllerId = controllerIndex;
+	request.dataSize = 0;
+
+	if (!HciAdapter::getInstance().sendCommand(request))
+	{
+		Logger::error("Failed to get current settings");
+	}
+}
 
 // Connects the HCI socket if a connection does not already exist
 //
@@ -190,11 +451,34 @@ static const char *kEventTypeNames[kMaxEventType] =
 // Returns true if the HCI socket is connected (either via a new connection or an existing one), otherwise false
 bool HciAdapter::connect()
 {
-	// Connect if we aren't already connected
-	if (!isConnected() && !hciSocket.connect())
+	// Already connected?
+	if (isConnected())
+	{
+		return true;
+	}
+
+	// Try to connect
+	if (!hciSocket.connect())
 	{
 		disconnect();
 		return false;
+	}
+
+	Logger::trace("Starting the HciAdapter thread");
+
+	// Create a thread to read the data from the socket
+	try
+	{
+		eventThread = std::thread(ggk::runEventThread);
+	}
+	catch(std::system_error &ex)
+	{
+		if (ex.code() == std::errc::resource_unavailable_try_again)
+		{
+			Logger::error(SSTR << "HciAdapter thread was unable to start: " << ex.what());
+			disconnect();
+			return false;
+		}
 	}
 
 	return true;
@@ -219,6 +503,14 @@ void HciAdapter::disconnect()
 	{
 		hciSocket.disconnect();
 	}
+
+	if (eventThread.joinable())
+	{
+		Logger::trace("Stopping the HciAdapter thread");
+
+		pthread_kill(eventThread.native_handle(), SIGINT);
+		eventThread.join();
+	}
 }
 
 // Sends a command over the HCI socket
@@ -227,15 +519,12 @@ void HciAdapter::disconnect()
 // a failure is returned.
 //
 // Returns true on success, otherwise false
-bool HciAdapter::sendCommand(Header &request, ResponseEvent &response, int responseLen)
+bool HciAdapter::sendCommand(HciHeader &request)
 {
 	// Auto-connect
 	if (!connect()) { return false; }
 
-	Logger::debug("  + Request header");
-	Logger::debug(SSTR << "    + Event code         : " << Utils::hex(request.code));
-	Logger::debug(SSTR << "    + Controller Id      : " << Utils::hex(request.controllerId));
-	Logger::debug(SSTR << "    + Data size          : " << request.dataSize << " bytes");
+	Logger::debug(request.debugText());
 
 	request.toNetwork();
 	uint8_t *pRequest = reinterpret_cast<uint8_t *>(&request);
@@ -245,156 +534,8 @@ bool HciAdapter::sendCommand(Header &request, ResponseEvent &response, int respo
 		return false;
 	}
 
-	// Read the response for this particular command
-	return readResponse(request.code, response, responseLen);
-}
+	std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
-// Reads a response from the HCI socket
-//
-// Responses are generally triggered by sending commands (see `sendCommand`) but not always. In HCI parlance, a response is
-// actually an event. Performing commands triggers events. There is not always a 1:1 ratio betwee command and event, and a
-// command may trigger different events based on the result of the command.
-//
-// Unlike the other methods in this class, this method does not auto-connect, as this method is private and can only be called
-// from methods that have alreay auto-connected.
-bool HciAdapter::readResponse(uint16_t commandCode, ResponseEvent &response, size_t responseLen) const
-{
-	if (!hciSocket.isConnected()) { return false; }
-
-	std::vector<uint8_t> responsePacket = std::vector<uint8_t>();
-	if (!hciSocket.read(responsePacket))
-	{
-		return false;
-	}
-
-	// Validate our events and remove everything that isn't a command complete or status event
-	if (!filterAndValidateEvents(commandCode, responsePacket))
-	{
-		return false;
-	}
-
-	// Do we have enough to check the event code?
-	if (responsePacket.size() < 2)
-	{
-		Logger::error(SSTR << "Command's response was invalid");
-		return false;
-	}
-
-	// If this wasn't a Command Complete Event, just return an error
-	uint16_t eventCode = Utils::endianToHost(*reinterpret_cast<uint16_t *>(responsePacket.data()));
-	if (eventCode != 1)
-	{
-		return false;
-	}
-
-	// It's a Command Complete event, verify the size is what we expect
-	if (responsePacket.size() != responseLen)
-	{
-		Logger::error(SSTR << "Command's response was " << responsePacket.size() << " bytes but was supposed to be " << responseLen << " bytes");
-		return false;
-	}
-
-	// Copy the response data into the requested structure
-	memcpy(&response, responsePacket.data(), responseLen);
-
-	// Perform endian conversion
-	response.toHost();
-
-	// Log the header information
-	Logger::debug("  + Response event");
-	Logger::debug(SSTR << "    + Event code         : " << Utils::hex(response.header.code));
-	Logger::debug(SSTR << "    + Controller Id      : " << Utils::hex(response.header.controllerId));
-	Logger::debug(SSTR << "    + Data size          : " << response.header.dataSize << " bytes");
-	Logger::debug(SSTR << "    + Command code       : " << response.commandCode);
-	Logger::debug(SSTR << "    + Status             : " << Utils::hex(response.status));
-
-	// One last check... let's verify that our data size is what it should be
-	//
-	// Note that we add 3 - this is because there are two fields that always follow the
-	// data size (so they were included in our ResponseEvent structure) even
-	// though they are not counted as part of the size, so we account for that here.
-	int adjustedHeaderSize = sizeof(ResponseEvent) - 3;
-	int expectedDataSize = responseLen - adjustedHeaderSize;
-	if (response.header.dataSize != expectedDataSize)
-	{
-		Logger::error(SSTR << "The data size from the response (" << response.header.dataSize
-		<< ") does not match the response structure (" << expectedDataSize
-		<< ": " << responseLen << " - " << adjustedHeaderSize
-		<< ") - this is likely a kernel version mismatch or bug in the code");
-	}
-
-	// Everything checks out - good to go!
-	return true;
-}
-
-// Filter out events that we aren't interested in
-//
-// NOTE: We're just dipping our toe into the HCI stuff here, so we only care about command complete and status events. This
-// isn't the most robust way to do things, but it is effective.
-bool HciAdapter::filterAndValidateEvents(uint16_t commandCode, std::vector<uint8_t> &buffer) const
-{
-	// Chew through each event in the buffer, removing those that are not related to the requested commandCode
-	std::vector<uint8_t> lastGoodEvent;
-	while (!buffer.empty())
-	{
-		// Get an event pointer into the start of our buffer
-		ResponseEvent *pEvent = reinterpret_cast<ResponseEvent *>(buffer.data());
-
-		// Validate that there is enough space for this event according to its size
-		size_t dataLength = sizeof(Header) + pEvent->header.dataSize;
-		if (dataLength > buffer.size())
-		{
-			Logger::error("  + Not enough data for the current event");
-			return false;
-		}
-
-		// !HACK! - If the device is connected, then powering off (Command Code 0x0005) returns a Device Disconnect Event (Event
-		//          Code 0xC) rather than a Command Complete Event (0x1) like it should.
-		//
-		//          We'll fake it here, converting that condition into a Command Complete Event (0x1).
-		if (commandCode == 0x0005 && pEvent->header.code == 0xC)
-		{
-			Logger::debug("!HACK! Converting invalid Disconect Event to Command Complete Event for power-off command");
-			pEvent->header.code = 1;
-			buffer = {0x1, 0x0, 0x0, 0x0, 0x7, 0x0, 0x5, 0x0, 0x0, 0x2, 0x6, 0x0, 0x0};
-			pEvent = reinterpret_cast<ResponseEvent *>(buffer.data());
-			dataLength = sizeof(Header) + pEvent->header.dataSize;
-		}
-
-		// Check the event type
-		if (pEvent->header.code < kMinEventType || pEvent->header.code > kMaxEventType)
-		{
-			Logger::error(SSTR << "  + Unknown event type " << Utils::hex(pEvent->header.code) << " - ditching all response data to resynchronize");
-			return false;
-		}
-
-		std::string eventTypeName = kEventTypeNames[pEvent->header.code - kMinEventType];
-		std::string commandCodeName = pEvent->commandCode < kMinCommandCode || pEvent->commandCode > kMaxCommandCode ? "Unknown" : kCommandCodeNames[pEvent->commandCode - kMinCommandCode];
-
-		Logger::debug(SSTR << "  + Received event type " << Utils::hex(pEvent->header.code) << " (" << eventTypeName << ")");
-
-		// Success event for our command?
-		if (pEvent->header.code != 1 && pEvent->commandCode != commandCode)
-		{
-			Logger::debug(SSTR << "  + Skipping event type " << Utils::hex(pEvent->header.code) << " (" << eventTypeName << ")");
-		}
-		else
-		{
-			lastGoodEvent = std::vector<uint8_t>(buffer.begin(), buffer.begin() + dataLength);
-		}
-
-		// Remove the current event and move along
-		buffer.erase(buffer.begin(), buffer.begin() + dataLength);
-	}
-
-	// If we don't have a last good event, return an error
-	if (lastGoodEvent.empty())
-	{
-		return false;
-	}
-
-	// Return the last good event
-	buffer = lastGoodEvent;
 	return true;
 }
 

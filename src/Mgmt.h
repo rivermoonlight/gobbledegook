@@ -59,70 +59,127 @@ struct Mgmt
 	// Types
 	//
 
-	// HCI Controller Settings
-	enum EHciControllerSettings
+	// These indices should match those in HciAdapter::kEventTypeNames
+	enum EventTypes
 	{
-		EHciPowered = (1<<0),
-		EHciConnectable = (1<<1),
-		EHciFastConnectable = (1<<2),
-		EHciDiscoverable = (1<<3),
-		EHciBondable = (1<<4),
-		EHciLinkLevelSecurity = (1<<5),
-		EHciSecureSimplePairing = (1<<6),
-		EHciBasicRate_EnhancedDataRate = (1<<7),
-		EHciHighSpeed = (1<<8),
-		EHciLowEnergy = (1<<9),
-		EHciAdvertising = (1<<10),
-		EHciSecureConnections = (1<<11),
-		EHciDebugKeys = (1<<12),
-		EHciPrivacy = (1<<13),
-		EHciControllerConfiguration = (1<<14),
-		EHciStaticAddress = (1<<15)
+		EInvalidEvent                                         = 0x0000,
+		ECommandCompleteEvent                                 = 0x0001,
+		ECommandStatusEvent                                   = 0x0002,
+		EControllerErrorEvent                                 = 0x0003,
+		EIndexAddedEvent                                      = 0x0004,
+		EIndexRemovedEvent                                    = 0x0005,
+		ENewSettingsEvent                                     = 0x0006,
+		EClassOfDeviceChangedEvent                            = 0x0007,
+		ELocalNameChangedEvent                                = 0x0008,
+		ENewLinkKeyEvent                                      = 0x0009,
+		ENewLongTermKeyEvent                                  = 0x000A,
+		EDeviceConnectedEvent                                 = 0x000B,
+		EDeviceDisconnectedEvent                              = 0x000C,
+		EConnectFailedEvent                                   = 0x000D,
+		EPINCodeRequestEvent                                  = 0x000E,
+		EUserConfirmationRequestEvent                         = 0x000F,
+		EUserPasskeyRequestEvent                              = 0x0010,
+		EAuthenticationFailedEvent                            = 0x0011,
+		EDeviceFoundEvent                                     = 0x0012,
+		EDiscoveringEvent                                     = 0x0013,
+		EDeviceBlockedEvent                                   = 0x0014,
+		EDeviceUnblockedEvent                                 = 0x0015,
+		EDeviceUnpairedEvent                                  = 0x0016,
+		EPasskeyNotifyEvent                                   = 0x0017,
+		ENewIdentityResolvingKeyEvent                         = 0x0018,
+		ENewSignatureResolvingKeyEvent                        = 0x0019,
+		EDeviceAddedEvent                                     = 0x001a,
+		EDeviceRemovedEvent                                   = 0x001b,
+		ENewConnectionParameterEvent                          = 0x001c,
+		EUnconfiguredIndexAddedEvent                          = 0x001d,
+		EUnconfiguredIndexRemovedEvent                        = 0x001e,
+		ENewConfigurationOptionsEvent                         = 0x001f,
+		EExtendedIndexAddedEvent                              = 0x0020,
+		EExtendedIndexRemovedEvent                            = 0x0021,
+		ELocalOutOfBandExtendedDataUpdatedEvent               = 0x0022,
+		EAdvertisingAddedEvent                                = 0x0023,
+		EAdvertisingRemovedEvent                              = 0x0024,
+		EExtendedControllerInformationChangedEvent            = 0x0025
 	};
 
-	// The comments documenting these fields are very high level. There is a lot of detailed information not present, for example
-	// some values are not available at all times. This is fully documented in:
-	//
-	//     https://git.kernel.org/pub/scm/bluetooth/bluez.git/tree/doc/mgmt-api.txt
-	struct ControllerInformation
+	// These indices should match those in HciAdapter::kCommandCodeNames
+	enum CommandCodes
 	{
-		uint8_t address[6];         // The Bluetooth address
-		uint8_t bluetoothVersion;   // Bluetooth version
-		uint16_t manufacturer;      // The manufacturer
-		uint32_t supportedSettings; // Bits for various supported settings (see EHciControllerSettings)
-		uint32_t currentSettings;   // Bits for various currently configured settings (see EHciControllerSettings)
-		uint8_t classOfDevice[3];   // Um, yeah. That.
-		char name[249];             // Null terminated name
-		char shortName[11];         // Null terminated short name
-
-		void toHost()
-		{
-			manufacturer = Utils::endianToHost(manufacturer);
-			supportedSettings = Utils::endianToHost(supportedSettings);
-			currentSettings = Utils::endianToHost(currentSettings);
-		}
-	} __attribute__((packed));
+		EInvalidCommand                                       = 0x0000,
+		EReadVersionInformationCommand                        = 0x0001,
+		EReadSupportedCommandsCommand                         = 0x0002,
+		EReadControllerIndexListCommand                       = 0x0003,
+		EReadControllerInformationCommand                     = 0x0004,
+		ESetPoweredCommand                                    = 0x0005,
+		ESetDiscoverableCommand                               = 0x0006,
+		ESetConnectableCommand                                = 0x0007,
+		ESetFastConnectableCommand                            = 0x0008,
+		ESetBondableCommand                                   = 0x0009,
+		ESetLinkSecurityCommand                               = 0x000A,
+		ESetSecureSimplePairingCommand                        = 0x000B,
+		ESetHighSpeedCommand                                  = 0x000C,
+		ESetLowEnergyCommand                                  = 0x000D,
+		ESetDeviceClass                                       = 0x000E,
+		ESetLocalNameCommand                                  = 0x000F,
+		EAddUUIDCommand                                       = 0x0010,
+		ERemoveUUIDCommand                                    = 0x0011,
+		ELoadLinkKeysCommand                                  = 0x0012,
+		ELoadLongTermKeysCommand                              = 0x0013,
+		EDisconnectCommand                                    = 0x0014,
+		EGetConnectionsCommand                                = 0x0015,
+		EPINCodeReplyCommand                                  = 0x0016,
+		EPINCodeNegativeReplyCommand                          = 0x0017,
+		ESetIOCapabilityCommand                               = 0x0018,
+		EPairDeviceCommand                                    = 0x0019,
+		ECancelPairDeviceCommand                              = 0x001A,
+		EUnpairDeviceCommand                                  = 0x001B,
+		EUserConfirmationReplyCommand                         = 0x001C,
+		EUserConfirmationNegativeReplyCommand                 = 0x001D,
+		EUserPasskeyReplyCommand                              = 0x001E,
+		EUserPasskeyNegativeReplyCommand                      = 0x001F,
+		EReadLocalOutOfBandDataCommand                        = 0x0020,
+		EAddRemoteOutOfBandDataCommand                        = 0x0021,
+		ERemoveRemoteOutOfBandDataCommand                     = 0x0022,
+		EStartDiscoveryCommand                                = 0x0023,
+		EStopDiscoveryCommand                                 = 0x0024,
+		EConfirmNameCommand                                   = 0x0025,
+		EBlockDeviceCommand                                   = 0x0026,
+		EUnblockDeviceCommand                                 = 0x0027,
+		ESetDeviceIDCommand                                   = 0x0028,
+		ESetAdvertisingCommand                                = 0x0029,
+		ESetBREDRCommand                                      = 0x002A,
+		ESetStaticAddressCommand                              = 0x002B,
+		ESetScanParametersCommand                             = 0x002C,
+		ESetSecureConnectionsCommand                          = 0x002D,
+		ESetDebugKeysCommand                                  = 0x002E,
+		ESetPrivacyCommand                                    = 0x002F,
+		ELoadIdentityResolvingKeysCommand                     = 0x0030,
+		EGetConnectionInformationCommand                      = 0x0031,
+		EGetClockInformationCommand                           = 0x0032,
+		EAddDeviceCommand                                     = 0x0033,
+		ERemoveDeviceCommand                                  = 0x0034,
+		ELoadConnectionParametersCommand                      = 0x0035,
+		EReadUnconfiguredControllerIndexListCommand           = 0x0036,
+		EReadControllerConfigurationInformationCommand        = 0x0037,
+		ESetExternalConfigurationCommand                      = 0x0038,
+		ESetPublicAddressCommand                              = 0x0039,
+		EStartServiceDiscoveryCommand                         = 0x003a,
+		EReadLocalOutOfBandExtendedDataCommand                = 0x003b,
+		EReadExtendedControllerIndexListCommand               = 0x003c,
+		EReadAdvertisingFeaturesCommand                       = 0x003d,
+		EAddAdvertisingCommand                                = 0x003e,
+		ERemoveAdvertisingCommand                             = 0x003f,
+		EGetAdvertisingSizeInformationCommand                 = 0x0040,
+		EStartLimitedDiscoveryCommand                         = 0x0041,
+		EReadExtendedControllerInformationCommand             = 0x0042,
+		ESetAppearanceCommand                                 = 0x0043
+	};
 
 	// Construct the Mgmt device
 	//
 	// Set `controllerIndex` to the zero-based index of the device as recognized by the OS. If this parameter is omitted, the index
 	// of the first device (0) will be used.
 	Mgmt(uint16_t controllerIndex = kDefaultControllerIndex);
-
-	// Returns the version information:
-	//
-	//    bits 0-15 = revision
-	//    bits 16-23 = version
-	//
-	//    ... or -1 on error
-	int getVersion();
-
-	// Returns information about the controller (address, name, current settings, etc.)
-	//
-	// See the definition for MgmtControllerInformation for details.
-	//
-	//    ... or nullptr on error
-	ControllerInformation *getControllerInformation();
 
 	// Set the adapter name and short name
 	//
@@ -138,7 +195,7 @@ struct Mgmt
 	// Many settings are set the same way, this is just a convenience routine to handle them all
 	//
 	// Returns true on success, otherwise false
-	bool setState(const char *pSettingName, uint16_t commandCode, uint16_t controllerId, uint8_t newState);
+	bool setState(uint16_t commandCode, uint16_t controllerId, uint8_t newState);
 
 	// Set the powered state to `newState` (true = powered on, false = powered off)
 	//
@@ -180,10 +237,6 @@ struct Mgmt
 	// Utilitarian
 	//
 
-	// Transforms a "Current_Settings" value (4 octets as defined by the Bluetooth Management API specification) into a human-
-	// readable string of flags and settings.
-	static std::string controllerSettingsString(uint32_t bits);
-
 	// Truncates the string `name` to the maximum allowed length for an adapter name. If `name` needs no truncation, a copy of
 	// `name` is returned.
 	static std::string truncateName(const std::string &name);
@@ -198,20 +251,11 @@ private:
 	// Data members
 	//
 
-	// Our adapter - we use this to connect to the HCI socket to talk to the adapter
-	HciAdapter hciAdapter;
-
-	// Our controller information, updated each time the controller information is received
-	ControllerInformation controllerInfo;
-
 	// The default controller index (the first device)
 	uint16_t controllerIndex;
 
 	// Default controller index
 	static const uint16_t kDefaultControllerIndex = 0;
-
-	// A constant referring to a 'non-controller' (for commands that do not require a controller index)
-	static const uint16_t kNonController = 0xffff;
 };
 
 }; // namespace ggk

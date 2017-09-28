@@ -298,6 +298,9 @@ void shutdown()
 	// Our new state: shutting down
 	setServerRunState(EStopping);
 
+	// Disconnect our HciAdapter
+	HciAdapter::getInstance().disconnect();
+
 	// If we still have a main loop, ask it to quit
 	if (nullptr != pMainLoop)
 	{
@@ -487,11 +490,17 @@ gboolean onSetProperty
 //
 // ---------------------------------------------------------------------------------------------------------------------------------
 
+// Convenience method for setting a retry timer so that operations can be continuously retried until we eventually succeed
+void setRetry()
+{
+	retryTimeStart = time(nullptr);
+}
+
 // Convenience method for setting a retry timer so that failures (related to initialization) can be continuously retried until we
 // eventually succeed.
 void setRetryFailure()
 {
-	retryTimeStart = time(nullptr);
+	setRetry();
 	Logger::warn(SSTR << "  + Will retry the failed operation in about " << kRetryDelaySeconds << " seconds");
 }
 
@@ -663,127 +672,105 @@ void configureAdapter()
 {
 	Mgmt mgmt;
 
+	// Get our properly truncated advertising names
+	std::string advertisingName = Mgmt::truncateName(TheServer->getAdvertisingName());
+	std::string advertisingShortName = Mgmt::truncateShortName(TheServer->getAdvertisingShortName());
+
 	// Find out what our current settings are
-	Logger::debug(SSTR << "Getting device information");
-	Mgmt::ControllerInformation *pInfo = mgmt.getControllerInformation();
-	if (nullptr == pInfo)
+	HciAdapter::ControllerInformation info = HciAdapter::getInstance().getControllerInformation();
+
+	// Are all of our settings the way we want them?
+	bool pwFlag = info.currentSettings.isSet(HciAdapter::EHciPowered) == true;
+	bool leFlag = info.currentSettings.isSet(HciAdapter::EHciLowEnergy) == true;
+	bool brFlag = info.currentSettings.isSet(HciAdapter::EHciBasicRate_EnhancedDataRate) == TheServer->getEnableBREDR();
+	bool scFlag = info.currentSettings.isSet(HciAdapter::EHciSecureConnections) == TheServer->getEnableSecureConnection();
+	bool bnFlag = info.currentSettings.isSet(HciAdapter::EHciBondable) == TheServer->getEnableBondable();
+	bool cnFlag = info.currentSettings.isSet(HciAdapter::EHciConnectable) == TheServer->getEnableConnectable();
+	bool adFlag = info.currentSettings.isSet(HciAdapter::EHciAdvertising) == TheServer->getEnableAdvertising();
+	bool anFlag = (advertisingName.length() == 0 || advertisingName == info.name) && (advertisingShortName.length() == 0 || advertisingShortName == info.shortName);
+
+	// If everything is setup already, we're done
+	if (pwFlag && leFlag && brFlag && scFlag && bnFlag && cnFlag && adFlag && anFlag)
 	{
-		setRetryFailure();
+		Logger::info("The adapter is fully configured");
+
+		// We're all set, nothing to do!
+		bAdapterConfigured = true;
+		initializationStateProcessor();
 		return;
 	}
 
 	// We need it off to start with
-	if ((pInfo->currentSettings & Mgmt::EHciPowered) != 0)
+	if (pwFlag)
 	{
-		Logger::debug(SSTR << "Powering off");
-		if (!mgmt.setPowered(false))
-		{
-			setRetryFailure();
-			return;
-		}
-	}
-
-	// Change the Br/Edr state?
-	bool bredrCurrentState = (pInfo->currentSettings & Mgmt::EHciBasicRate_EnhancedDataRate) != 0 ? true:false;
-	if (TheServer->getEnableBREDR() != bredrCurrentState)
-	{
-		Logger::debug(SSTR << (TheServer->getEnableBREDR() ? "Enabling":"Disabling") << " BR/EDR");
-		if (!mgmt.setBredr(TheServer->getEnableBREDR()))
-		{
-			setRetryFailure();
-			return;
-		}
-	}
-
-	// Change the Secure Connectinos state?
-	bool scCurrentState = (pInfo->currentSettings & Mgmt::EHciSecureConnections) != 0 ? true:false;
-	if (TheServer->getEnableSecureConnection() != scCurrentState)
-	{
-		Logger::debug(SSTR << (TheServer->getEnableSecureConnection() ? "Enabling":"Disabling") << " Secure Connections");
-		if (!mgmt.setSecureConnections(TheServer->getEnableSecureConnection() ? 1 : 0))
-		{
-			setRetryFailure();
-			return;
-		}
-	}
-
-	// Change the Bondable state?
-	bool bondableCurrentState = (pInfo->currentSettings & Mgmt::EHciBondable) != 0 ? true:false;
-	if (TheServer->getEnableBondable() != bondableCurrentState)
-	{
-		Logger::debug(SSTR << (TheServer->getEnableBondable() ? "Enabling":"Disabling") << " Bondable");
-		if (!mgmt.setBondable(TheServer->getEnableBondable()))
-		{
-			setRetryFailure();
-			return;
-		}
-	}
-
-	// Change the Connectable state?
-	bool connectableCurrentState = (pInfo->currentSettings & Mgmt::EHciConnectable) != 0 ? true:false;
-	if (TheServer->getEnableConnectable() != connectableCurrentState)
-	{
-		Logger::debug(SSTR << (TheServer->getEnableConnectable() ? "Enabling":"Disabling") << " Connectable");
-		if (!mgmt.setConnectable(TheServer->getEnableConnectable()))
-		{
-			setRetryFailure();
-			return;
-		}
+		Logger::debug("Powering off");
+		mgmt.setPowered(false);
 	}
 
 	// Enable the LE state (we always set this state if it's not set)
-	if ((pInfo->currentSettings & Mgmt::EHciLowEnergy) == 0)
+	if (!leFlag)
 	{
-		Logger::debug(SSTR << "Enabling LE");
-		if (!mgmt.setLE(true))
-		{
-			setRetryFailure();
-			return;
-		}
+		Logger::debug("Enabling LE");
+		mgmt.setLE(true);
+	}
+
+	// Change the Br/Edr state?
+	//
+	// Note that enabling this requries LE to already be enabled or this command will receive a 'rejected' result
+	if (!brFlag)
+	{
+		Logger::debug(SSTR << (TheServer->getEnableBREDR() ? "Enabling":"Disabling") << " BR/EDR");
+		mgmt.setBredr(TheServer->getEnableBREDR());
+	}
+
+	// Change the Secure Connectinos state?
+	if (!scFlag)
+	{
+		Logger::debug(SSTR << (TheServer->getEnableSecureConnection() ? "Enabling":"Disabling") << " Secure Connections");
+		mgmt.setSecureConnections(TheServer->getEnableSecureConnection() ? 1 : 0);
+	}
+
+	// Change the Bondable state?
+	if (!bnFlag)
+	{
+		Logger::debug(SSTR << (TheServer->getEnableBondable() ? "Enabling":"Disabling") << " Bondable");
+		mgmt.setBondable(TheServer->getEnableBondable());
+	}
+
+	// Change the Connectable state?
+	if (!cnFlag)
+	{
+		Logger::debug(SSTR << (TheServer->getEnableConnectable() ? "Enabling":"Disabling") << " Connectable");
+		mgmt.setConnectable(TheServer->getEnableConnectable());
 	}
 
 	// Change the Advertising state?
-	bool advertisingCurrentState = (pInfo->currentSettings & Mgmt::EHciAdvertising) != 0 ? true:false;
-	if (TheServer->getEnableAdvertising() != advertisingCurrentState)
+	if (!adFlag)
 	{
 		Logger::debug(SSTR << (TheServer->getEnableAdvertising() ? "Enabling":"Disabling") << " Advertising");
-		if (!mgmt.setAdvertising(TheServer->getEnableAdvertising() ? 1 : 0))
-		{
-			setRetryFailure();
-			return;
-		}
+		mgmt.setAdvertising(TheServer->getEnableAdvertising() ? 1 : 0);
 	}
 
 	// Set the name?
-	if (TheServer->getAdvertisingName().length() != 0 || TheServer->getAdvertisingShortName().length() != 0)
+	if (!anFlag)
 	{
-		std::string advertisingName = Mgmt::truncateName(TheServer->getAdvertisingName());
-		std::string advertisingShortName = Mgmt::truncateShortName(TheServer->getAdvertisingShortName());
-
-		if (advertisingName != pInfo->name || advertisingShortName != pInfo->shortName)
-		{
-			Logger::info(SSTR << "Setting advertising name to '" << advertisingName << "' (with short name: '" << advertisingShortName << "')");
-			if (!mgmt.setName(advertisingName.c_str(), advertisingShortName.c_str()))
-			{
-				setRetryFailure();
-				return;
-			}
-		}
+		Logger::info(SSTR << "Setting advertising name to '" << advertisingName << "' (with short name: '" << advertisingShortName << "')");
+		mgmt.setName(advertisingName.c_str(), advertisingShortName.c_str());
 	}
 
 	// Turn it back on
-	Logger::debug(SSTR << "Powering on");
-	if (!mgmt.setPowered(true))
-	{
-		setRetryFailure();
-		return;
-	}
+	Logger::debug("Powering on");
+	mgmt.setPowered(true);
+
+	// Give it some extra time to power up - this shouldn't really be necessary, but it won't hurt
+	std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
 	// We can ignore errors on this - we're just letting it dump the output
-	mgmt.getControllerInformation();
+	HciAdapter::getInstance().getControllerInformation();
 
-	bAdapterConfigured = true;
-	initializationStateProcessor();
+	// We always set the retry (silently) so we can validate our settings once the adapter has had a chance to respond to all
+	// of our requests
+	setRetry();
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------

@@ -43,6 +43,7 @@
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/hci.h>
 #include <thread>
+#include <fcntl.h>
 
 #include "HciSocket.h"
 #include "Logger.h"
@@ -114,55 +115,50 @@ void HciSocket::disconnect()
 
 // Reads data from the HCI socket
 //
-// Raw data is read until no more data is available. If no data is available when this method initially starts to read, it will
-// retry for a maximum timeout defined by `kMaxRetryTimeMS`.
+// Raw data is read and returned in `response`.
 //
-// Returns true if any data was read successfully, otherwise false is returned in the case of an error or a timeout.
+// Returns true if data was read successfully, otherwise false is returned. A false return code does not necessarily depict
+// an error, as this can arise from expected conditions (such as an interrupt.)
 bool HciSocket::read(std::vector<uint8_t> &response) const
 {
-	// Clear out our response
-	response.clear();
+	// Fill our response with empty data
+	response.resize(kResponseMaxSize, 0);
 
-	uint8_t responseChunk[kResponseChunkSize];
+	// Ensure we have blocking I/O
+	fcntl(fdSocket, F_SETFL, 0);
 
-	int retryTimeMS = 0;
-	while (retryTimeMS < kMaxRetryTimeMS && !ggkIsServerRunning())
+	// Block until we receive data, a disconnect, or a signal
+	ssize_t bytesRead = ::recv(fdSocket, &response[0], kResponseMaxSize, MSG_WAITALL);
+
+	// If there was an error, wipe the data and return an error condition
+	if (bytesRead < 0)
 	{
-		ssize_t bytesRead = ::read(fdSocket, responseChunk, kResponseChunkSize);
-		if (bytesRead > 0)
+		if (errno == EINTR)
 		{
-			if (response.size() + bytesRead > kResponseMaxSize)
-			{
-				Logger::warn(SSTR << "Response has exceeded maximum size");
-				return false;
-			}
-			// We just received some data, add it to our buffer
-			std::vector<uint8_t> insertBuf(responseChunk, responseChunk + bytesRead);
-			response.insert(response.end(), insertBuf.begin(), insertBuf.end());
+			Logger::debug("HciSocket receive interrupted");
 		}
 		else
 		{
-			// If we have data, we're at the end
-			if (response.size() != 0)
-			{
-				break;
-			}
+			logErrno("recv");
 		}
-
-		// Retry (or continue reading)
-		std::this_thread::sleep_for(std::chrono::milliseconds(kRetryIntervalMS));
-		retryTimeMS += kRetryIntervalMS;
+		response.resize(0);
+		return false;
 	}
-
-	// Did we time out?
-	if (retryTimeMS >= kMaxRetryTimeMS)
+	else if (bytesRead == 0)
 	{
-		logErrno("read(header)");
+		Logger::error("  + Peer closed the socket");
+		response.resize(0);
 		return false;
 	}
 
-	Logger::debug(SSTR << "  + Read " << response.size() << " bytes");
-	Logger::debug(SSTR << Utils::hex(response.data(), response.size()));
+	// We have data
+	response.resize(bytesRead);
+
+	std::string dump = "";
+	dump += "> Read " + std::to_string(response.size()) + " bytes\n";
+	dump += Utils::hex(response.data(), response.size());
+	Logger::debug(dump);
+
 	return true;
 }
 
@@ -179,8 +175,10 @@ bool HciSocket::write(std::vector<uint8_t> buffer) const
 // This method returns true if the bytes were written successfully, otherwise false
 bool HciSocket::write(const uint8_t *pBuffer, size_t count) const
 {
-	Logger::debug(SSTR << "  + Writing " << count << " bytes");
-	Logger::debug(SSTR << Utils::hex(pBuffer, count));
+	std::string dump = "";
+	dump += "> Writing " + std::to_string(count) + " bytes\n";
+	dump += Utils::hex(pBuffer, count);
+	Logger::debug(dump);
 
 	size_t len = ::write(fdSocket, pBuffer, count);
 

@@ -159,7 +159,7 @@ struct GattUuid
 	{
 		bitCount = 32;
 		char partStr[9];
-		snprintf(partStr, sizeof(partStr), "%04x", part);
+		snprintf(partStr, sizeof(partStr), "%08x", part);
 		uuid = std::string(partStr) + kGattStandardUuidSuffix;
 	}
 

@@ -129,7 +129,7 @@ struct TickEvent
 		{
 			if (nullptr != callback)
 			{
-				Logger::info(SSTR << "Ticking at path '" << path << "'");
+				Logger::debug(SSTR << "Ticking at path '" << path << "'");
 				callback(*static_cast<const T *>(pOwner), *this, pConnection, pUserData);
 			}
 

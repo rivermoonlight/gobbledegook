@@ -40,6 +40,7 @@
 #include "Utils.h"
 #include "TickEvent.h"
 #include "GattInterface.h"
+#include "HciAdapter.h"
 
 namespace ggk {
 
@@ -207,9 +208,16 @@ struct GattCharacteristic : GattInterface
 	//
 	// This is a helper method that accepts common types. For custom types, there is a form that accepts a `GVariant *`, called
 	// `sendChangeNotificationVariant()`.
+	//
+	// If there are no connections, this method returns doing nothing.
 	template<typename T>
 	void sendChangeNotificationValue(GDBusConnection *pBusConnection, T value) const
 	{
+		if (HciAdapter::getInstance().getActiveConnectionCount() == 0)
+		{
+			return;
+		}
+
 		GVariant *pVariant = Utils::gvariantFromByteArray(value);
 		sendChangeNotificationVariant(pBusConnection, pVariant);
 	}

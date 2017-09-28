@@ -86,9 +86,6 @@ private:
 	int	fdSocket;
 
 	const size_t kResponseMaxSize = 64 * 1024;
-	const int kResponseChunkSize = 1024;
-	const int kRetryIntervalMS = 20;
-	const int kMaxRetryTimeMS = 5000;
 };
 
 }; // namespace ggk
