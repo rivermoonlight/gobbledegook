@@ -37,9 +37,12 @@
 #include <stdint.h>
 #include <vector>
 #include <thread>
+#include <mutex>
+#include <condition_variable>
 
 #include "HciSocket.h"
 #include "Utils.h"
+#include "Logger.h"
 
 namespace ggk {
 
@@ -50,6 +53,9 @@ public:
 	//
 	// Constants
 	//
+
+	// How long to wait for a response event for commands sent to the adapter
+	static const int kMaxEventWaitTimeMS = 1000;
 
 	// A constant referring to a 'non-controller' (for commands that do not require a controller index)
 	static const uint16_t kNonController = 0xffff;
@@ -130,6 +136,15 @@ public:
 		uint16_t commandCode;
 		uint8_t status;
 
+		CommandCompleteEvent(const std::vector<uint8_t> &data)
+		{
+			*this = *reinterpret_cast<const CommandCompleteEvent *>(data.data());
+			toHost();
+
+			// Log it
+			Logger::debug(debugText());
+		}
+
 		void toNetwork()
 		{
 			header.toNetwork();
@@ -160,6 +175,15 @@ public:
 		HciHeader header;
 		uint16_t commandCode;
 		uint8_t status;
+
+		CommandStatusEvent(const std::vector<uint8_t> &data)
+		{
+			*this = *reinterpret_cast<const CommandStatusEvent *>(data.data());
+			toHost();
+
+			// Log it
+			Logger::debug(debugText());
+		}
 
 		void toNetwork()
 		{
@@ -193,6 +217,15 @@ public:
 		uint8_t addressType;
 		uint32_t flags;
 		uint16_t eirDataLength;
+
+		DeviceConnectedEvent(const std::vector<uint8_t> &data)
+		{
+			*this = *reinterpret_cast<const DeviceConnectedEvent *>(data.data());
+			toHost();
+
+			// Log it
+			Logger::debug(debugText());
+		}
 
 		void toNetwork()
 		{
@@ -234,6 +267,15 @@ public:
 		uint8_t address[6];
 		uint8_t addressType;
 		uint8_t reason;
+
+		DeviceDisconnectedEvent(const std::vector<uint8_t> &data)
+		{
+			*this = *reinterpret_cast<const DeviceDisconnectedEvent *>(data.data());
+			toHost();
+
+			// Log it
+			Logger::debug(debugText());
+		}
 
 		void toNetwork()
 		{
@@ -378,8 +420,8 @@ public:
 		{
 			std::string text = "";
 			text += "> Local name information\n";
-			text += "  + Name       : '" + std::string(name) + "\n";
-			text += "  + Short name : '" + std::string(shortName);
+			text += "  + Name       : '" + std::string(name) + "'\n";
+			text += "  + Short name : '" + std::string(shortName) + "'";
 			return text;
 		}
 	} __attribute__((packed));
@@ -395,11 +437,10 @@ public:
 		return instance;
 	}
 
-	AdapterSettings getAdapterSettings();
-	ControllerInformation getControllerInformation();
-	VersionInformation getVersionInformation();
-	LocalName getLocalName();
-
+	AdapterSettings getAdapterSettings() { return adapterSettings; }
+	ControllerInformation getControllerInformation() { return controllerInformation; }
+	VersionInformation getVersionInformation() { return versionInformation; }
+	LocalName getLocalName() { return localName; }
 	int getActiveConnectionCount() { return activeConnections; }
 
 	//
@@ -415,26 +456,19 @@ public:
 	// milliseconds. Therefore, it is not recommended attempt to retrieve the results from their accessors immediately.
 	void sync(uint16_t controllerIndex);
 
-	// Connects the HCI socket if a connection does not already exist
+	// Connects the HCI socket if a connection does not already exist and starts the run thread
 	//
-	// If a connection already exists, this method will do nothing and return true.
+	// If a connection already exists, this method will fail
 	//
 	// Note that it shouldn't be necessary to connect manually; any action requiring a connection will automatically connect
 	//
 	// Returns true if the HCI socket is connected (either via a new connection or an existing one), otherwise false
-	bool connect();
+	bool start();
 
-	// Returns true if connected to the HCI socket, otherwise false
+	// Waits for the HciAdapter run thread to join
 	//
-	// Note that it shouldn't be necessary to connect manually; any action requiring a connection will automatically connect
-	bool isConnected() const;
-
-	// Disconnects from the HCI Socket
-	//
-	// If the connection is not connected, this method will do nothing.
-	//
-	// It isn't necessary to disconnect manually; the HCI socket will get disocnnected automatically upon destruction
-	void disconnect();
+	// This method will block until the thread joins
+	void stop();
 
 	// Sends a command over the HCI socket
 	//
@@ -453,6 +487,11 @@ private:
 	// Private constructor for our Singleton
 	HciAdapter() : activeConnections(0) {}
 
+	// Uses a std::condition_variable to wait for a response event for the given `commandCode` or `timeoutMS` milliseconds.
+	//
+	// Returns true if the response event was received for `commandCode` or false if the timeout expired.
+	bool waitFor(uint16_t commandCode, int timeoutMS);
+
 	// Our HCI Socket, which allows us to talk directly to the kernel
 	HciSocket hciSocket;
 
@@ -464,6 +503,9 @@ private:
 	ControllerInformation controllerInformation;
 	VersionInformation versionInformation;
 	LocalName localName;
+
+	std::condition_variable conditionalWait;
+	int conditionalValue;
 
 	// Our active connection count
 	int activeConnections;

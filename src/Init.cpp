@@ -102,7 +102,7 @@ static std::string bluezGattManagerInterfaceName = "";
 //
 
 extern void setServerRunState(enum GGKServerRunState newState);
-extern void setServerHealth(enum GGKServerHealth newState);
+extern void setServerHealth(enum GGKServerHealth newHealth);
 
 //
 // Forward declarations
@@ -140,6 +140,7 @@ static void initializationStateProcessor();
 // returning false when there is no work to do, we are nicer to the system.
 bool idleFunc(void *pUserData)
 {
+
 	// Don't do anything unless we're running
 	if (ggkGetServerRunState() != ERunning)
 	{
@@ -178,6 +179,7 @@ bool idleFunc(void *pUserData)
 		{
 			Logger::debug(SSTR << "Processing updated value for interface '" << interfaceName << "' at path '" << objectPath << "'");
 			pCharacteristic->callOnUpdatedValue(pBusConnection, pUserData);
+			return true;
 		}
 	}
 
@@ -290,16 +292,17 @@ void uninit()
 // This method is non-blocking and as such, will only trigger the shutdown process but not wait for it
 void shutdown()
 {
-	if (ggkGetServerRunState() >= EStopping)
+	if (ggkGetServerRunState() > ERunning)
 	{
-		Logger::warn(SSTR << "shutdown() called while already shutting down");
+		Logger::warn("Ignoring call to shutdown (we are already shutting down)");
+		return;
 	}
 
 	// Our new state: shutting down
 	setServerRunState(EStopping);
 
-	// Disconnect our HciAdapter
-	HciAdapter::getInstance().disconnect();
+	// Stop our HciAdapter
+	HciAdapter::getInstance().stop();
 
 	// If we still have a main loop, ask it to quit
 	if (nullptr != pMainLoop)
@@ -323,6 +326,12 @@ void shutdown()
 // failure retries, but custom code can also be added to a server description (see `onEvent()`)
 gboolean onPeriodicTimer(gpointer pUserData)
 {
+	// If we're shutting down, don't do anything and stop the periodic timer
+	if (ggkGetServerRunState() > ERunning)
+	{
+		return FALSE;
+	}
+
 	// Deal with retry timers
 	if (0 != retryTimeStart)
 	{
@@ -690,87 +699,76 @@ void configureAdapter()
 	bool anFlag = (advertisingName.length() == 0 || advertisingName == info.name) && (advertisingShortName.length() == 0 || advertisingShortName == info.shortName);
 
 	// If everything is setup already, we're done
-	if (pwFlag && leFlag && brFlag && scFlag && bnFlag && cnFlag && adFlag && anFlag)
+	if (!pwFlag || !leFlag || !brFlag || !scFlag || !bnFlag || !cnFlag || !adFlag || !anFlag)
 	{
-		Logger::info("The adapter is fully configured");
+		// We need it off to start with
+		if (pwFlag)
+		{
+			Logger::debug("Powering off");
+			if (!mgmt.setPowered(false)) { setRetry(); return; }
+		}
 
-		// We're all set, nothing to do!
-		bAdapterConfigured = true;
-		initializationStateProcessor();
-		return;
+		// Enable the LE state (we always set this state if it's not set)
+		if (!leFlag)
+		{
+			Logger::debug("Enabling LE");
+			if (!mgmt.setLE(true)) { setRetry(); return; }
+		}
+
+		// Change the Br/Edr state?
+		//
+		// Note that enabling this requries LE to already be enabled or this command will receive a 'rejected' result
+		if (!brFlag)
+		{
+			Logger::debug(SSTR << (TheServer->getEnableBREDR() ? "Enabling":"Disabling") << " BR/EDR");
+			if (!mgmt.setBredr(TheServer->getEnableBREDR())) { setRetry(); return; }
+		}
+
+		// Change the Secure Connectinos state?
+		if (!scFlag)
+		{
+			Logger::debug(SSTR << (TheServer->getEnableSecureConnection() ? "Enabling":"Disabling") << " Secure Connections");
+			if (!mgmt.setSecureConnections(TheServer->getEnableSecureConnection() ? 1 : 0)) { setRetry(); return; }
+		}
+
+		// Change the Bondable state?
+		if (!bnFlag)
+		{
+			Logger::debug(SSTR << (TheServer->getEnableBondable() ? "Enabling":"Disabling") << " Bondable");
+			if (!mgmt.setBondable(TheServer->getEnableBondable())) { setRetry(); return; }
+		}
+
+		// Change the Connectable state?
+		if (!cnFlag)
+		{
+			Logger::debug(SSTR << (TheServer->getEnableConnectable() ? "Enabling":"Disabling") << " Connectable");
+			if (!mgmt.setConnectable(TheServer->getEnableConnectable())) { setRetry(); return; }
+		}
+
+		// Change the Advertising state?
+		if (!adFlag)
+		{
+			Logger::debug(SSTR << (TheServer->getEnableAdvertising() ? "Enabling":"Disabling") << " Advertising");
+			if (!mgmt.setAdvertising(TheServer->getEnableAdvertising() ? 1 : 0)) { setRetry(); return; }
+		}
+
+		// Set the name?
+		if (!anFlag)
+		{
+			Logger::info(SSTR << "Setting advertising name to '" << advertisingName << "' (with short name: '" << advertisingShortName << "')");
+			if (!mgmt.setName(advertisingName.c_str(), advertisingShortName.c_str())) { setRetry(); return; }
+		}
+
+		// Turn it back on
+		Logger::debug("Powering on");
+		if (!mgmt.setPowered(true)) { setRetry(); return; }
 	}
 
-	// We need it off to start with
-	if (pwFlag)
-	{
-		Logger::debug("Powering off");
-		mgmt.setPowered(false);
-	}
+	Logger::info("The Bluetooth adapter is fully configured");
 
-	// Enable the LE state (we always set this state if it's not set)
-	if (!leFlag)
-	{
-		Logger::debug("Enabling LE");
-		mgmt.setLE(true);
-	}
-
-	// Change the Br/Edr state?
-	//
-	// Note that enabling this requries LE to already be enabled or this command will receive a 'rejected' result
-	if (!brFlag)
-	{
-		Logger::debug(SSTR << (TheServer->getEnableBREDR() ? "Enabling":"Disabling") << " BR/EDR");
-		mgmt.setBredr(TheServer->getEnableBREDR());
-	}
-
-	// Change the Secure Connectinos state?
-	if (!scFlag)
-	{
-		Logger::debug(SSTR << (TheServer->getEnableSecureConnection() ? "Enabling":"Disabling") << " Secure Connections");
-		mgmt.setSecureConnections(TheServer->getEnableSecureConnection() ? 1 : 0);
-	}
-
-	// Change the Bondable state?
-	if (!bnFlag)
-	{
-		Logger::debug(SSTR << (TheServer->getEnableBondable() ? "Enabling":"Disabling") << " Bondable");
-		mgmt.setBondable(TheServer->getEnableBondable());
-	}
-
-	// Change the Connectable state?
-	if (!cnFlag)
-	{
-		Logger::debug(SSTR << (TheServer->getEnableConnectable() ? "Enabling":"Disabling") << " Connectable");
-		mgmt.setConnectable(TheServer->getEnableConnectable());
-	}
-
-	// Change the Advertising state?
-	if (!adFlag)
-	{
-		Logger::debug(SSTR << (TheServer->getEnableAdvertising() ? "Enabling":"Disabling") << " Advertising");
-		mgmt.setAdvertising(TheServer->getEnableAdvertising() ? 1 : 0);
-	}
-
-	// Set the name?
-	if (!anFlag)
-	{
-		Logger::info(SSTR << "Setting advertising name to '" << advertisingName << "' (with short name: '" << advertisingShortName << "')");
-		mgmt.setName(advertisingName.c_str(), advertisingShortName.c_str());
-	}
-
-	// Turn it back on
-	Logger::debug("Powering on");
-	mgmt.setPowered(true);
-
-	// Give it some extra time to power up - this shouldn't really be necessary, but it won't hurt
-	std::this_thread::sleep_for(std::chrono::milliseconds(500));
-
-	// We can ignore errors on this - we're just letting it dump the output
-	HciAdapter::getInstance().getControllerInformation();
-
-	// We always set the retry (silently) so we can validate our settings once the adapter has had a chance to respond to all
-	// of our requests
-	setRetry();
+	// We're all set, nothing to do!
+	bAdapterConfigured = true;
+	initializationStateProcessor();
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------
@@ -1042,7 +1040,10 @@ void doBusAcquire()
 void initializationStateProcessor()
 {
 	// If we're in our end-of-life or waiting for a retry, don't process states
-	if (ggkGetServerRunState() > ERunning || 0 != retryTimeStart) { return; }
+	if (ggkGetServerRunState() > ERunning || 0 != retryTimeStart)
+	{
+		return;
+	}
 
 	//
 	// Get a bus connection
@@ -1156,7 +1157,7 @@ void runServerThread()
 	// There are alternatives, but using async methods is the recommended way.
 	initializationStateProcessor();
 
-	Logger::debug(SSTR << "Starting GLib main loop");
+	Logger::debug(SSTR << "Creating GLib main loop");
 	pMainLoop = g_main_loop_new(NULL, FALSE);
 
 	// Add the idle function
@@ -1184,6 +1185,7 @@ void runServerThread()
 		Logger::error(SSTR << "Unable to add idle to main loop");
 	}
 
+	Logger::trace(SSTR << "Starting GLib main loop");
 	g_main_loop_run(pMainLoop);
 
 	// We have stopped

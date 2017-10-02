@@ -87,9 +87,10 @@ namespace ggk
 	}
 
 	// Internal method to set the health of the server
-	void setServerHealth(GGKServerHealth newState)
+	void setServerHealth(GGKServerHealth newHealth)
 	{
-		serverHealth = newState;
+		Logger::status(SSTR << "** SERVER HEALTH CHANGED: " << ggkGetServerHealthString(serverHealth) << " -> " << ggkGetServerHealthString(newHealth));
+		serverHealth = newHealth;
 	}
 }; // namespace ggk
 
@@ -255,7 +256,7 @@ const char *ggkGetServerRunStateString(GGKServerRunState state)
 // Convenience method to check ServerRunState for a running server
 int ggkIsServerRunning()
 {
-	return serverRunState == ERunning ? 1 : 0;
+	return serverRunState <= ERunning ? 1 : 0;
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------
@@ -344,7 +345,7 @@ int ggkWait()
 	int result = 0;
 	try
 	{
-		Logger::info("Stopping GGK server");
+		Logger::info("Waiting for GGK server to stop");
 		serverThread.join();
 
 		result = 1;
@@ -353,19 +354,19 @@ int ggkWait()
 	{
 		if (ex.code() == std::errc::invalid_argument)
 		{
-			Logger::warn(SSTR << "Server thread was not joinable during stop(): " << ex.what());
+			Logger::warn(SSTR << "Server thread was not joinable during ggkWait(): " << ex.what());
 		}
 		else if (ex.code() == std::errc::no_such_process)
 		{
-			Logger::warn(SSTR << "Server thread was not valid during stop(): " << ex.what());
+			Logger::warn(SSTR << "Server thread was not valid during ggkWait(): " << ex.what());
 		}
 		else if (ex.code() == std::errc::resource_deadlock_would_occur)
 		{
-			Logger::warn(SSTR << "Deadlock avoided in call to stop() (did the server thread try to stop itself?): " << ex.what());
+			Logger::warn(SSTR << "Deadlock avoided in call to ggkWait() (did the server thread try to stop itself?): " << ex.what());
 		}
 		else
 		{
-			Logger::warn(SSTR << "Unknown system_error code (" << ex.code() << "): " << ex.what());
+			Logger::warn(SSTR << "Unknown system_error code (" << ex.code() << ") during ggkWait(): " << ex.what());
 		}
 	}
 
@@ -440,6 +441,8 @@ int ggkWait()
 int ggkStart(const char *pServiceName, const char *pAdvertisingName, const char *pAdvertisingShortName, 
 	GGKServerDataGetter getter, GGKServerDataSetter setter, int maxAsyncInitTimeoutMS)
 {
+try
+{
 	//
 	// Start by capturing the GLib output
 	//
@@ -490,13 +493,10 @@ int ggkStart(const char *pServiceName, const char *pAdvertisingName, const char 
 	}
 	catch(std::system_error &ex)
 	{
-		if (ex.code() == std::errc::resource_unavailable_try_again)
-		{
-			Logger::error(SSTR << "Server thread was unable to start during start(): " << ex.what());
+		Logger::error(SSTR << "Server thread was unable to start (code " << ex.code() << ") during ggkStart(): " << ex.what());
 
-			setServerRunState(EStopped);
-			return 0;
-		}
+		setServerRunState(EStopped);
+		return 0;
 	}
 
 	// Waits for the server to pass the EInitializing state
@@ -507,20 +507,34 @@ int ggkStart(const char *pServiceName, const char *pAdvertisingName, const char 
 		retryTimeMS += kMaxAsyncInitCheckIntervalMS;
 	}
 
-	// If something went wrong, shut down if we've not already done so
-	if (ggkGetServerRunState() < ERunning || ggkGetServerHealth() != EOk)
+	// If something went wrong, shut down
+	if (retryTimeMS >= maxAsyncInitTimeoutMS)
 	{
+		Logger::error("GGK server initialization timed out");
+
 		setServerHealth(EFailedInit);
 
-		// Stop the server (this is a blocking call)
-		if (!ggkShutdownAndWait())
+		shutdown();
+	}
+
+	// If something went wrong, shut down if we've not already done so
+	if (ggkGetServerRunState() != ERunning)
+	{
+		if (!ggkWait())
 		{
-			Logger::warn(SSTR << "Unable to stop the server from error in start()");
+			Logger::warn(SSTR << "Unable to stop the server after an error in ggkStart()");
 		}
 
 		return 0;
 	}
 
 	// Everything looks good
+	Logger::trace("GGK server has started");
 	return 1;
+	}
+catch(...)
+{
+	Logger::error(SSTR << "Unknown exception during ggkStart()");
+	return 0;
+}
 }

@@ -53,6 +53,7 @@
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 #include <string.h>
+#include <chrono>
 
 #include "HciAdapter.h"
 #include "HciSocket.h"
@@ -208,26 +209,6 @@ const char * const HciAdapter::kStatusCodes[kMaxStatusCode + 1] =
 	"Permission Denied",                                 // 0x14
 };
 
-HciAdapter::AdapterSettings HciAdapter::getAdapterSettings()
-{
-	return adapterSettings;
-}
-
-HciAdapter::ControllerInformation HciAdapter::getControllerInformation()
-{
-	return controllerInformation;
-}
-
-HciAdapter::VersionInformation HciAdapter::getVersionInformation()
-{
-	return versionInformation;
-}
-
-HciAdapter::LocalName HciAdapter::getLocalName()
-{
-	return localName;
-}
-
 // Our thread interface, which simply launches our the thread processor on our HciAdapter instance
 void runEventThread()
 {
@@ -237,11 +218,13 @@ void runEventThread()
 // Event processor, responsible for receiving events from the HCI socket
 //
 // This mehtod should not be called directly. Rather, it runs continuously on a thread until the server shuts down
+//
+// It isn't necessary to disconnect manually; the HCI socket will get disocnnected automatically at before this method returns
 void HciAdapter::runEventThread()
 {
 	Logger::trace("Entering the HciAdapter event thread");
 
-	while (ggkGetServerRunState() <= ERunning)
+	while (ggkGetServerRunState() <= ERunning && hciSocket.isConnected())
 	{
 		// Read the next event, waiting until one arrives
 		std::vector<uint8_t> responsePacket = std::vector<uint8_t>();
@@ -273,13 +256,7 @@ void HciAdapter::runEventThread()
 			case Mgmt::ECommandCompleteEvent:
 			{
 				// Extract our event
-				CommandCompleteEvent event = *reinterpret_cast<CommandCompleteEvent *>(responsePacket.data());
-
-				// Fixup endian
-				event.toHost();
-
-				// Log it
-				Logger::debug(event.debugText());
+				CommandCompleteEvent event(responsePacket);
 
 				// Point to the data following the event
 				uint8_t *data = responsePacket.data() + sizeof(CommandCompleteEvent);
@@ -348,54 +325,40 @@ void HciAdapter::runEventThread()
 						break;
 					}
 				}
+
+				// Notify anybody waiting that we received a response to their command code
+				if (conditionalValue == event.commandCode)
+				{
+					conditionalWait.notify_one();
+				}
+
 				break;
 			}
 			// Command status event
 			case Mgmt::ECommandStatusEvent:
 			{
-				// Extract our event
-				CommandStatusEvent event = *reinterpret_cast<CommandStatusEvent *>(responsePacket.data());
+				CommandStatusEvent event(responsePacket);
 
-				// Fixup endian
-				event.toHost();
-
-				// Log it
-				Logger::debug(event.debugText());
+				// Notify anybody waiting that we received a response to their command code
+				if (conditionalValue == event.commandCode)
+				{
+					conditionalWait.notify_one();
+				}
 
 				break;
 			}
 			// Command status event
 			case Mgmt::EDeviceConnectedEvent:
 			{
-				// Extract our event
-				DeviceConnectedEvent event = *reinterpret_cast<DeviceConnectedEvent *>(responsePacket.data());
-
-				// Fixup endian
-				event.toHost();
-
-				// Log it
-				Logger::debug(event.debugText());
-
-				// Track our connection count
+				DeviceConnectedEvent event(responsePacket);
 				activeConnections += 1;
-
 				break;
 			}
 			// Command status event
 			case Mgmt::EDeviceDisconnectedEvent:
 			{
-				// Extract our event
-				DeviceDisconnectedEvent event = *reinterpret_cast<DeviceDisconnectedEvent *>(responsePacket.data());
-
-				// Fixup endian
-				event.toHost();
-
-				// Log it
-				Logger::debug(event.debugText());
-
-				// Track our connection count
+				DeviceDisconnectedEvent event(responsePacket);
 				activeConnections -= 1;
-
 				break;
 			}
 			// Unsupported
@@ -413,6 +376,9 @@ void HciAdapter::runEventThread()
 		}
 	}
 
+	// Make sure we're disconnected before we leave
+	hciSocket.disconnect();
+
 	Logger::trace("Leaving the HciAdapter event thread");
 }
 
@@ -422,6 +388,8 @@ void HciAdapter::runEventThread()
 // milliseconds. Therefore, it is not recommended attempt to retrieve the results from their accessors immediately.
 void HciAdapter::sync(uint16_t controllerIndex)
 {
+	Logger::debug("Synchronizing version information");
+
 	HciAdapter::HciHeader request;
 	request.code = Mgmt::EReadVersionInformationCommand;
 	request.controllerId = HciAdapter::kNonController;
@@ -431,6 +399,8 @@ void HciAdapter::sync(uint16_t controllerIndex)
 	{
 		Logger::error("Failed to get version information");
 	}
+
+	Logger::debug("Synchronizing controller information");
 
 	request.code = Mgmt::EReadControllerInformationCommand;
 	request.controllerId = controllerIndex;
@@ -442,29 +412,30 @@ void HciAdapter::sync(uint16_t controllerIndex)
 	}
 }
 
-// Connects the HCI socket if a connection does not already exist
+// Connects the HCI socket if a connection does not already exist and starts the run thread
 //
-// If a connection already exists, this method will do nothing and return true.
+// If the thread is already running, this method will fail
 //
 // Note that it shouldn't be necessary to connect manually; any action requiring a connection will automatically connect
 //
 // Returns true if the HCI socket is connected (either via a new connection or an existing one), otherwise false
-bool HciAdapter::connect()
+bool HciAdapter::start()
 {
-	// Already connected?
-	if (isConnected())
+	// If the thread is already running, return failure
+	if (eventThread.joinable())
 	{
-		return true;
-	}
-
-	// Try to connect
-	if (!hciSocket.connect())
-	{
-		disconnect();
 		return false;
 	}
 
-	Logger::trace("Starting the HciAdapter thread");
+	// Already connected?
+	if (!hciSocket.isConnected())
+	{
+		// Connect
+		if (!hciSocket.connect())
+		{
+			return false;
+		}
+	}
 
 	// Create a thread to read the data from the socket
 	try
@@ -473,43 +444,51 @@ bool HciAdapter::connect()
 	}
 	catch(std::system_error &ex)
 	{
-		if (ex.code() == std::errc::resource_unavailable_try_again)
-		{
-			Logger::error(SSTR << "HciAdapter thread was unable to start: " << ex.what());
-			disconnect();
-			return false;
-		}
+		Logger::error(SSTR << "HciAdapter thread was unable to start (code " << ex.code() << "): " << ex.what());
+		return false;
 	}
 
 	return true;
 }
 
-// Returns true if connected to the HCI socket, otherwise false
+// Waits for the HciAdapter run thread to join
 //
-// Note that it shouldn't be necessary to connect manually; any action requiring a connection will automatically connect
-bool HciAdapter::isConnected() const
+// This method will block until the thread joins
+void HciAdapter::stop()
 {
-	return hciSocket.isConnected();
-}
+	Logger::trace("HciAdapter waiting for thread termination");
 
-// Disconnects from the HCI Socket
-//
-// If the connection is not connected, this method will do nothing.
-//
-// It isn't necessary to disconnect manually; the HCI socket will get disocnnected automatically upon destruction
-void HciAdapter::disconnect()
-{
-	if (isConnected())
+	try
 	{
-		hciSocket.disconnect();
+		if (eventThread.joinable())
+		{
+			eventThread.join();
+
+			Logger::trace("Event thread has stopped");
+		}
+		else
+		{
+			Logger::trace(" > Event thread is not joinable");
+		}
 	}
-
-	if (eventThread.joinable())
+	catch(std::system_error &ex)
 	{
-		Logger::trace("Stopping the HciAdapter thread");
-
-		pthread_kill(eventThread.native_handle(), SIGINT);
-		eventThread.join();
+		if (ex.code() == std::errc::invalid_argument)
+		{
+			Logger::warn(SSTR << "HciAdapter event thread was not joinable during HciAdapter::wait(): " << ex.what());
+		}
+		else if (ex.code() == std::errc::no_such_process)
+		{
+			Logger::warn(SSTR << "HciAdapter event was not valid during HciAdapter::wait(): " << ex.what());
+		}
+		else if (ex.code() == std::errc::resource_deadlock_would_occur)
+		{
+			Logger::warn(SSTR << "Deadlock avoided in call to HciAdapter::wait() (did the event thread try to stop itself?): " << ex.what());
+		}
+		else
+		{
+			Logger::warn(SSTR << "Unknown system_error code (" << ex.code() << ") during HciAdapter::wait(): " << ex.what());
+		}
 	}
 }
 
@@ -522,9 +501,11 @@ void HciAdapter::disconnect()
 bool HciAdapter::sendCommand(HciHeader &request)
 {
 	// Auto-connect
-	if (!connect()) { return false; }
-
-	Logger::debug(request.debugText());
+	if (!eventThread.joinable() && !start())
+	{
+		Logger::error("HciAdapter failed to start");
+		return false;
+	}
 
 	request.toNetwork();
 	uint8_t *pRequest = reinterpret_cast<uint8_t *>(&request);
@@ -534,9 +515,31 @@ bool HciAdapter::sendCommand(HciHeader &request)
 		return false;
 	}
 
-	std::this_thread::sleep_for(std::chrono::milliseconds(10));
+	return waitFor(request.code, kMaxEventWaitTimeMS);
+}
 
-	return true;
+// Uses a std::condition_variable to wait for a response event for the given `commandCode` or `timeoutMS` milliseconds.
+//
+// Returns true if the response event was received for `commandCode` or false if the timeout expired.
+bool HciAdapter::waitFor(uint16_t commandCode, int timeoutMS)
+{
+	std::mutex mtx;
+	std::unique_lock<std::mutex> lock(mtx);
+	conditionalValue = commandCode;
+
+	Logger::debug(SSTR << "  + Waiting on command code " << commandCode << " for " << timeoutMS << "ms");
+	bool timedOut = conditionalWait.wait_for(lock, std::chrono::milliseconds(timeoutMS)) == std::cv_status::timeout;
+
+	if (timedOut)
+	{
+		Logger::warn(SSTR << "+ Timed out waiting on command code " << Utils::hex(commandCode) << " (" << kCommandCodeNames[commandCode] << ")");
+	}
+	else
+	{
+		Logger::debug(SSTR << "+ Recieved the command code we were waiting for: " << Utils::hex(commandCode) << " (" << kCommandCodeNames[commandCode] << ")");
+	}
+
+	return !timedOut;
 }
 
 }; // namespace ggk

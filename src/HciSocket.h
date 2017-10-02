@@ -80,12 +80,18 @@ public:
 
 private:
 
+	// Wait for data to arrive, or for a shutdown event
+	//
+	// Returns true if data is available, false if we are shutting down
+	bool waitForDataOrShutdown() const;
+
 	// Utilitarian function for logging errors for the given operation
 	void logErrno(const char *pOperation) const;
 
 	int	fdSocket;
 
 	const size_t kResponseMaxSize = 64 * 1024;
+	const int kDataWaitTimeMS = 10;
 };
 
 }; // namespace ggk
