@@ -54,6 +54,7 @@
 
 #include <string.h>
 #include <chrono>
+#include <future>
 
 #include "HciAdapter.h"
 #include "HciSocket.h"
@@ -327,10 +328,7 @@ void HciAdapter::runEventThread()
 				}
 
 				// Notify anybody waiting that we received a response to their command code
-				if (conditionalValue == event.commandCode)
-				{
-					conditionalWait.notify_one();
-				}
+				setCommandResponse(event.commandCode);
 
 				break;
 			}
@@ -340,11 +338,7 @@ void HciAdapter::runEventThread()
 				CommandStatusEvent event(responsePacket);
 
 				// Notify anybody waiting that we received a response to their command code
-				if (conditionalValue == event.commandCode)
-				{
-					conditionalWait.notify_one();
-				}
-
+				setCommandResponse(event.commandCode);
 				break;
 			}
 			// Command status event
@@ -507,39 +501,60 @@ bool HciAdapter::sendCommand(HciHeader &request)
 		return false;
 	}
 
+	conditionalValue = -1;
+	std::future<bool> fut = std::async(std::launch::async,
+	[&]() mutable
+	{
+		return waitForCommandResponse(request.code, kMaxEventWaitTimeMS);
+	});
+
+	// Prepare the request to be sent (endianness correction)
 	request.toNetwork();
 	uint8_t *pRequest = reinterpret_cast<uint8_t *>(&request);
+
 	std::vector<uint8_t> requestPacket = std::vector<uint8_t>(pRequest, pRequest + sizeof(request) + request.dataSize);
 	if (!hciSocket.write(requestPacket))
 	{
 		return false;
 	}
 
-	return waitFor(request.code, kMaxEventWaitTimeMS);
+	return fut.get();
 }
 
 // Uses a std::condition_variable to wait for a response event for the given `commandCode` or `timeoutMS` milliseconds.
 //
 // Returns true if the response event was received for `commandCode` or false if the timeout expired.
-bool HciAdapter::waitFor(uint16_t commandCode, int timeoutMS)
+//
+// Command responses are set via `setCommandResponse()`
+bool HciAdapter::waitForCommandResponse(uint16_t commandCode, int timeoutMS)
 {
-	std::mutex mtx;
-	std::unique_lock<std::mutex> lock(mtx);
-	conditionalValue = commandCode;
+	Logger::debug(SSTR << "  + Waiting on command code " << commandCode << " for up to " << timeoutMS << "ms");
 
-	Logger::debug(SSTR << "  + Waiting on command code " << commandCode << " for " << timeoutMS << "ms");
-	bool timedOut = conditionalWait.wait_for(lock, std::chrono::milliseconds(timeoutMS)) == std::cv_status::timeout;
+	bool success = cvCommandResponse.wait_for(commandResponseLock, std::chrono::milliseconds(timeoutMS),
+		[&]
+		{
+			return conditionalValue == commandCode;
+		}
+	);
 
-	if (timedOut)
+	if (!success)
 	{
-		Logger::warn(SSTR << "+ Timed out waiting on command code " << Utils::hex(commandCode) << " (" << kCommandCodeNames[commandCode] << ")");
+		Logger::warn(SSTR << "  + Timed out waiting on command code " << Utils::hex(commandCode) << " (" << kCommandCodeNames[commandCode] << ")");
 	}
 	else
 	{
-		Logger::debug(SSTR << "+ Recieved the command code we were waiting for: " << Utils::hex(commandCode) << " (" << kCommandCodeNames[commandCode] << ")");
+		Logger::debug(SSTR << "  + Recieved the command code we were waiting for: " << Utils::hex(commandCode) << " (" << kCommandCodeNames[commandCode] << ")");
 	}
 
-	return !timedOut;
+	return success;
+}
+
+// Sets the command response and notifies the waiting std::condition_variable (see `waitForCommandResponse`)
+void HciAdapter::setCommandResponse(uint16_t commandCode)
+{
+	std::lock_guard<std::mutex> lk(commandResponseMutex);
+	conditionalValue = commandCode;
+	cvCommandResponse.notify_one();
 }
 
 }; // namespace ggk
