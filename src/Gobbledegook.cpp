@@ -317,8 +317,11 @@ void ggkTriggerShutdown()
 // `ggkWait()`)
 int ggkShutdownAndWait()
 {
-	// Tell the server to shut down
-	ggkTriggerShutdown();
+	if (ggkIsServerRunning() != 0)
+	{
+		// Tell the server to shut down
+		ggkTriggerShutdown();
+	}
 
 	// Block until it has shut down completely
 	return ggkWait();
@@ -345,8 +348,15 @@ int ggkWait()
 	int result = 0;
 	try
 	{
-		Logger::info("Waiting for GGK server to stop");
-		serverThread.join();
+		if (ggkGetServerRunState() <= ERunning)
+		{
+			Logger::info("Waiting for GGK server to stop");
+		}
+
+		if (serverThread.joinable())
+		{
+			serverThread.join();
+		}
 
 		result = 1;
 	}
@@ -441,100 +451,100 @@ int ggkWait()
 int ggkStart(const char *pServiceName, const char *pAdvertisingName, const char *pAdvertisingShortName, 
 	GGKServerDataGetter getter, GGKServerDataSetter setter, int maxAsyncInitTimeoutMS)
 {
-try
-{
-	//
-	// Start by capturing the GLib output
-	//
-
-	// Redirect GLib output to this log method
-	printHandlerGLib = g_set_print_handler([](const gchar *string)
-	{
-		Logger::info(string);
-	});
-	printerrHandlerGLib = g_set_printerr_handler([](const gchar *string)
-	{
-		Logger::error(string);
-	});
-	logHandlerGLib = g_log_set_default_handler([](const gchar *log_domain, GLogLevelFlags log_levels, const gchar *message, gpointer /*user_data*/)
-	{
-		std::string str = std::string(log_domain) + ": " + message;
-		if ((log_levels & (G_LOG_FLAG_RECURSION|G_LOG_FLAG_FATAL)) != 0)
-		{
-			Logger::fatal(str);
-		}
-		else if ((log_levels & (G_LOG_LEVEL_CRITICAL|G_LOG_LEVEL_ERROR)) != 0)
-		{
-			Logger::error(str);
-		}
-		else if ((log_levels & G_LOG_LEVEL_WARNING) != 0)
-		{
-			Logger::warn(str);
-		}
-		else if ((log_levels & G_LOG_LEVEL_DEBUG) != 0)
-		{
-			Logger::debug(str);
-		}
-		else
-		{
-			Logger::info(str);
-		}
-	}, nullptr);
-
-	Logger::info(SSTR << "Starting GGK server '" << pAdvertisingName << "'");
-
-	// Allocate our server
-	TheServer = std::make_shared<Server>(pServiceName, pAdvertisingName, pAdvertisingShortName, getter, setter);
-
-	// Start our server thread
 	try
 	{
-		serverThread = std::thread(runServerThread);
-	}
-	catch(std::system_error &ex)
-	{
-		Logger::error(SSTR << "Server thread was unable to start (code " << ex.code() << ") during ggkStart(): " << ex.what());
+		//
+		// Start by capturing the GLib output
+		//
 
-		setServerRunState(EStopped);
-		return 0;
-	}
-
-	// Waits for the server to pass the EInitializing state
-	int retryTimeMS = 0;
-	while (retryTimeMS < maxAsyncInitTimeoutMS && ggkGetServerRunState() <= EInitializing)
-	{
-		std::this_thread::sleep_for(std::chrono::milliseconds(kMaxAsyncInitCheckIntervalMS));
-		retryTimeMS += kMaxAsyncInitCheckIntervalMS;
-	}
-
-	// If something went wrong, shut down
-	if (retryTimeMS >= maxAsyncInitTimeoutMS)
-	{
-		Logger::error("GGK server initialization timed out");
-
-		setServerHealth(EFailedInit);
-
-		shutdown();
-	}
-
-	// If something went wrong, shut down if we've not already done so
-	if (ggkGetServerRunState() != ERunning)
-	{
-		if (!ggkWait())
+		// Redirect GLib output to this log method
+		printHandlerGLib = g_set_print_handler([](const gchar *string)
 		{
-			Logger::warn(SSTR << "Unable to stop the server after an error in ggkStart()");
+			Logger::info(string);
+		});
+		printerrHandlerGLib = g_set_printerr_handler([](const gchar *string)
+		{
+			Logger::error(string);
+		});
+		logHandlerGLib = g_log_set_default_handler([](const gchar *log_domain, GLogLevelFlags log_levels, const gchar *message, gpointer /*user_data*/)
+		{
+			std::string str = std::string(log_domain) + ": " + message;
+			if ((log_levels & (G_LOG_FLAG_RECURSION|G_LOG_FLAG_FATAL)) != 0)
+			{
+				Logger::fatal(str);
+			}
+			else if ((log_levels & (G_LOG_LEVEL_CRITICAL|G_LOG_LEVEL_ERROR)) != 0)
+			{
+				Logger::error(str);
+			}
+			else if ((log_levels & G_LOG_LEVEL_WARNING) != 0)
+			{
+				Logger::warn(str);
+			}
+			else if ((log_levels & G_LOG_LEVEL_DEBUG) != 0)
+			{
+				Logger::debug(str);
+			}
+			else
+			{
+				Logger::info(str);
+			}
+		}, nullptr);
+
+		Logger::info(SSTR << "Starting GGK server '" << pAdvertisingName << "'");
+
+		// Allocate our server
+		TheServer = std::make_shared<Server>(pServiceName, pAdvertisingName, pAdvertisingShortName, getter, setter);
+
+		// Start our server thread
+		try
+		{
+			serverThread = std::thread(runServerThread);
+		}
+		catch(std::system_error &ex)
+		{
+			Logger::error(SSTR << "Server thread was unable to start (code " << ex.code() << ") during ggkStart(): " << ex.what());
+
+			setServerRunState(EStopped);
+			return 0;
 		}
 
+		// Waits for the server to pass the EInitializing state
+		int retryTimeMS = 0;
+		while (retryTimeMS < maxAsyncInitTimeoutMS && ggkGetServerRunState() <= EInitializing)
+		{
+			std::this_thread::sleep_for(std::chrono::milliseconds(kMaxAsyncInitCheckIntervalMS));
+			retryTimeMS += kMaxAsyncInitCheckIntervalMS;
+		}
+
+		// If something went wrong, shut down
+		if (retryTimeMS >= maxAsyncInitTimeoutMS)
+		{
+			Logger::error("GGK server initialization timed out");
+
+			setServerHealth(EFailedInit);
+
+			shutdown();
+		}
+
+		// If something went wrong, shut down if we've not already done so
+		if (ggkGetServerRunState() != ERunning)
+		{
+			if (!ggkWait())
+			{
+				Logger::warn(SSTR << "Unable to stop the server after an error in ggkStart()");
+			}
+
+			return 0;
+		}
+
+		// Everything looks good
+		Logger::trace("GGK server has started");
+		return 1;
+	}
+	catch(...)
+	{
+		Logger::error(SSTR << "Unknown exception during ggkStart()");
 		return 0;
 	}
-
-	// Everything looks good
-	Logger::trace("GGK server has started");
-	return 1;
-	}
-catch(...)
-{
-	Logger::error(SSTR << "Unknown exception during ggkStart()");
-	return 0;
-}
 }
