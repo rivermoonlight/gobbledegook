@@ -202,6 +202,9 @@ struct GattCharacteristic : GattInterface
 	//
 	// This is a generalized method that accepts a `GVariant *`. A templated version is available that supports common types called
 	// `sendChangeNotificationValue()`.
+	//
+	// The caller may choose to consult HciAdapter::getInstance().getActiveConnectionCount() in order to determine if there are any
+	// active connections before sending a change notification.
 	void sendChangeNotificationVariant(GDBusConnection *pBusConnection, GVariant *pNewValue) const;
 
 	// Sends a change notification to subscribers to this characteristic
@@ -209,15 +212,11 @@ struct GattCharacteristic : GattInterface
 	// This is a helper method that accepts common types. For custom types, there is a form that accepts a `GVariant *`, called
 	// `sendChangeNotificationVariant()`.
 	//
-	// If there are no connections, this method returns doing nothing.
+	// The caller may choose to consult HciAdapter::getInstance().getActiveConnectionCount() in order to determine if there are any
+	// active connections before sending a change notification.
 	template<typename T>
 	void sendChangeNotificationValue(GDBusConnection *pBusConnection, T value) const
 	{
-		if (HciAdapter::getInstance().getActiveConnectionCount() == 0)
-		{
-			return;
-		}
-
 		GVariant *pVariant = Utils::gvariantFromByteArray(value);
 		sendChangeNotificationVariant(pBusConnection, pVariant);
 	}

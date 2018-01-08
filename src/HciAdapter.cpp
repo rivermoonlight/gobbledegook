@@ -346,13 +346,22 @@ void HciAdapter::runEventThread()
 			{
 				DeviceConnectedEvent event(responsePacket);
 				activeConnections += 1;
+				Logger::debug(SSTR << "  > Connection count incremented to " << activeConnections);
 				break;
 			}
 			// Command status event
 			case Mgmt::EDeviceDisconnectedEvent:
 			{
 				DeviceDisconnectedEvent event(responsePacket);
-				activeConnections -= 1;
+				if (activeConnections > 0)
+				{
+					activeConnections -= 1;
+					Logger::debug(SSTR << "  > Connection count decremented to " << activeConnections);
+				}
+				else
+				{
+					Logger::debug(SSTR << "  > Connection count already at zero, ignoring non-connected disconnect event");
+				}
 				break;
 			}
 			// Unsupported

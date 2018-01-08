@@ -209,6 +209,9 @@ GattDescriptor &GattCharacteristic::gattDescriptorBegin(const std::string &pathE
 //
 // This is a generalized method that accepts a `GVariant *`. A templated version is available that supports common types called
 // `sendChangeNotificationValue()`.
+//
+// The caller may choose to consult HciAdapter::getInstance().getActiveConnectionCount() in order to determine if there are any
+// active connections before sending a change notification.
 void GattCharacteristic::sendChangeNotificationVariant(GDBusConnection *pBusConnection, GVariant *pNewValue) const
 {
 	g_auto(GVariantBuilder) builder;
