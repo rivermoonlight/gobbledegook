@@ -510,18 +510,21 @@ bool HciAdapter::sendCommand(HciHeader &request)
 		return false;
 	}
 
+	uint16_t code = request.code;
+	uint16_t dataSize = request.dataSize;
+
 	conditionalValue = -1;
 	std::future<bool> fut = std::async(std::launch::async,
 	[&]() mutable
 	{
-		return waitForCommandResponse(request.code, kMaxEventWaitTimeMS);
+		return waitForCommandResponse(code, kMaxEventWaitTimeMS);
 	});
 
 	// Prepare the request to be sent (endianness correction)
 	request.toNetwork();
 	uint8_t *pRequest = reinterpret_cast<uint8_t *>(&request);
 
-	std::vector<uint8_t> requestPacket = std::vector<uint8_t>(pRequest, pRequest + sizeof(request) + request.dataSize);
+	std::vector<uint8_t> requestPacket = std::vector<uint8_t>(pRequest, pRequest + sizeof(request) + dataSize);
 	if (!hciSocket.write(requestPacket))
 	{
 		return false;
