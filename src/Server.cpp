@@ -243,6 +243,7 @@ Server::Server(const std::string &serviceName, const std::string &advertisingNam
 	enableBREDR = false;
 	enableSecureConnection = false;
 	enableConnectable = true;
+	enableDiscoverable = true;
 	enableAdvertising = true;
 	enableBondable = false;
 

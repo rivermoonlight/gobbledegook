@@ -84,6 +84,9 @@ struct Server
 	// Returns the requested setting the connectable state (true = enabled, false = disabled)
 	bool getEnableConnectable() const { return enableConnectable; }
 
+	// Returns the requested setting the discoverable state (true = enabled, false = disabled)
+	bool getEnableDiscoverable() const { return enableDiscoverable; }
+
 	// Returns the requested setting the LE advertising state (true = enabled, false = disabled)
 	bool getEnableAdvertising() const { return enableAdvertising; }
 
@@ -200,6 +203,9 @@ private:
 
 	// Connectable requested state
 	bool enableConnectable;
+
+	// Discoverable requested state
+	bool enableDiscoverable;
 
 	// LE advertising requested state
 	bool enableAdvertising;

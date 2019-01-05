@@ -90,6 +90,35 @@ bool Mgmt::setName(std::string name, std::string shortName)
 	return true;
 }
 
+// Sets discoverable mode
+// 0x00 disables discoverable
+// 0x01 enables general discoverable
+// 0x02 enables limited discoverable
+// Timeout is the time in seconds. For 0x02, the timeout value is required.
+bool Mgmt::setDiscoverable(uint8_t disc, uint16_t timeout)
+{
+	struct SRequest : HciAdapter::HciHeader
+	{
+		uint8_t disc;
+		uint16_t timeout;
+	} __attribute__((packed));
+
+	SRequest request;
+	request.code = Mgmt::ESetDiscoverableCommand;
+	request.controllerId = controllerIndex;
+	request.dataSize = sizeof(SRequest) - sizeof(HciAdapter::HciHeader);
+	request.disc = disc;
+	request.timeout = timeout;
+
+	if (!HciAdapter::getInstance().sendCommand(request))
+	{
+		Logger::warn(SSTR << "  + Failed to set discoverable");
+		return false;
+	}
+
+	return true;
+}
+
 // Set a setting state to 'newState'
 //
 // Many settings are set the same way, this is just a convenience routine to handle them all

@@ -190,6 +190,13 @@ struct Mgmt
 	// Returns true on success, otherwise false
 	bool setName(std::string name, std::string shortName);
 
+	// Sets discoverable mode
+	// 0x00 disables discoverable
+	// 0x01 enables general discoverable
+	// 0x02 enables limited discoverable
+	// Timeout is the time in seconds. For 0x02, the timeout value is required.
+	bool setDiscoverable(uint8_t disc, uint16_t timeout);
+
 	// Set a setting state to 'newState'
 	//
 	// Many settings are set the same way, this is just a convenience routine to handle them all
