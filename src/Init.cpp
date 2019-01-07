@@ -695,11 +695,12 @@ void configureAdapter()
 	bool scFlag = info.currentSettings.isSet(HciAdapter::EHciSecureConnections) == TheServer->getEnableSecureConnection();
 	bool bnFlag = info.currentSettings.isSet(HciAdapter::EHciBondable) == TheServer->getEnableBondable();
 	bool cnFlag = info.currentSettings.isSet(HciAdapter::EHciConnectable) == TheServer->getEnableConnectable();
+	bool diFlag = info.currentSettings.isSet(HciAdapter::EHciDiscoverable) == TheServer->getEnableDiscoverable();
 	bool adFlag = info.currentSettings.isSet(HciAdapter::EHciAdvertising) == TheServer->getEnableAdvertising();
 	bool anFlag = (advertisingName.length() == 0 || advertisingName == info.name) && (advertisingShortName.length() == 0 || advertisingShortName == info.shortName);
 
 	// If everything is setup already, we're done
-	if (!pwFlag || !leFlag || !brFlag || !scFlag || !bnFlag || !cnFlag || !adFlag || !anFlag)
+	if (!pwFlag || !leFlag || !brFlag || !scFlag || !bnFlag || !cnFlag || !diFlag || !adFlag || !anFlag)
 	{
 		// We need it off to start with
 		if (pwFlag)
@@ -743,6 +744,13 @@ void configureAdapter()
 		{
 			Logger::debug(SSTR << (TheServer->getEnableConnectable() ? "Enabling":"Disabling") << " Connectable");
 			if (!mgmt.setConnectable(TheServer->getEnableConnectable())) { setRetry(); return; }
+		}
+
+		// Change the Discoverable state?
+		if (!diFlag)
+		{
+			Logger::debug(SSTR << (TheServer->getEnableDiscoverable() ? "Enabling":"Disabling") << " Discoverable");
+			if (!mgmt.setDiscoverable(TheServer->getEnableDiscoverable() ? 1 : 0, 0)) { setRetry(); return; }
 		}
 
 		// Change the Advertising state?
