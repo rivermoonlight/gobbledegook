@@ -406,6 +406,11 @@ Server::Server(const std::string &serviceName, const std::string &advertisingNam
 				// Characteristic interface (which just so happens to be the same interface passed into our self
 				// parameter) we can that parameter to call our own onUpdatedValue method
 				self.callOnUpdatedValue(pConnection, pUserData);
+
+				// Note: Even though the WriteValue method returns void, it's important to return like this, so that a
+				// dbus "method_return" is sent, otherwise the client gets an error (ATT error code 0x0e"unlikely").
+				// Only "write-without-response" works without this
+				self.methodReturnVariant(pInvocation, NULL);
 			})
 
 			// Here we use the onUpdatedValue to set a callback that isn't exposed to BlueZ, but rather allows us to manage
