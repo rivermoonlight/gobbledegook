@@ -1,6 +1,12 @@
 # News
 
-On Feb 1, 2019, Gobbledegook's license changed from GPL to LGPL in hopes that it would be found useful to more developers.
+### Jun 24, 2019 - New license
+
+This author has deciced that this software should be free. Furthermore, this author's choice should not limit the freedoms of other authors by restricting their choices. As a result, Gobbledegook is now licensed under the **New BSD License**.
+
+### Feb 1, 2019
+
+Gobbledegook's license changed from GPL to LGPL in hopes that it would be found useful to more developers.
 
 # What is Gobbledegook?
 
