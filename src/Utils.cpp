@@ -354,14 +354,18 @@ GVariant *Utils::gvariantFromByteArray(const std::string &str)
 GVariant *Utils::gvariantFromByteArray(const guint8 *pBytes, int count)
 {
 	GBytes *pGbytes = g_bytes_new(pBytes, count);
-	return g_variant_new_from_bytes(G_VARIANT_TYPE_BYTESTRING, pGbytes, count);
+	GVariant *pGVariant = g_variant_new_from_bytes(G_VARIANT_TYPE_BYTESTRING, pGbytes, count);
+	g_bytes_unref(pGbytes);
+	return pGVariant;
 }
 
 // Returns an array of bytes ("ay") with the contents of the input array of unsigned 8-bit values
 GVariant *Utils::gvariantFromByteArray(const std::vector<guint8> bytes)
 {
 	GBytes *pGbytes = g_bytes_new(bytes.data(), bytes.size());
-	return g_variant_new_from_bytes(G_VARIANT_TYPE_BYTESTRING, pGbytes, bytes.size());
+	GVariant *pGVariant = g_variant_new_from_bytes(G_VARIANT_TYPE_BYTESTRING, pGbytes, bytes.size());
+	g_bytes_unref(pGbytes);
+	return pGVariant;
 }
 
 // Returns an array of bytes ("ay") containing a single unsigned 8-bit value
