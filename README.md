@@ -1,3 +1,11 @@
+# Seeking a new maintainer
+
+I'm a firm believer that a maintainer should be, at least in some part, a consumer of the thing they're maintaining. I built GGK for a personal project. That project's communication needs have grown considerably, beyond the point where Bluetooth LE is a viable option and I was forced to make the switch to an IP-based solution. As much as I've enjoyed building and using GGK, I no longer have a use-case for Bluetooh LE or a test-case for GGK.
+
+If you are a GGK user and would like to become an advocate for its future development, please contact me.
+
+---
+
 # News
 
 ### Jun 24, 2019 - New license
